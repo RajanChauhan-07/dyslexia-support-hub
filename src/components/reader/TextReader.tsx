@@ -4,6 +4,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { PlayCircle, PauseCircle, RotateCcw } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface TextReaderProps {
   fontFamily: string;
@@ -24,6 +30,7 @@ const TextReader = ({
 }: TextReaderProps) => {
   const [text, setText] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [speechRate, setSpeechRate] = useState<number>(1.0);
   const { toast } = useToast();
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -53,7 +60,7 @@ const TextReader = ({
 
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9; // Slightly slower than default
+      utterance.rate = speechRate; // Apply the selected speech rate
       
       utterance.onend = () => {
         setIsSpeaking(false);
@@ -86,6 +93,21 @@ const TextReader = ({
     }
   };
 
+  const handleRateChange = (value: number[]) => {
+    setSpeechRate(value[0]);
+    
+    // If already speaking, restart with new rate
+    if (isSpeaking) {
+      stopSpeech();
+      startSpeech();
+    }
+  };
+
+  // Format speed display value
+  const formatSpeedLabel = (speed: number) => {
+    return `${speed}x`;
+  };
+
   return (
     <div className="w-full animate-fade-in">
       <div 
@@ -108,7 +130,7 @@ const TextReader = ({
         />
       </div>
       
-      <div className="flex flex-wrap gap-3 justify-center">
+      <div className="flex flex-wrap gap-3 justify-center items-center">
         <Button
           onClick={toggleSpeech}
           className="rounded-full px-6 transition-all gap-2"
@@ -124,6 +146,35 @@ const TextReader = ({
             </>
           )}
         </Button>
+        
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="rounded-full transition-all"
+              disabled={!('speechSynthesis' in window)}
+            >
+              {formatSpeedLabel(speechRate)}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80">
+            <div className="space-y-4">
+              <h4 className="font-medium text-center">Reading Speed</h4>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">0.25x</span>
+                <Slider
+                  value={[speechRate]}
+                  min={0.25}
+                  max={2}
+                  step={0.25}
+                  onValueChange={handleRateChange}
+                  className="w-52"
+                />
+                <span className="text-sm">2x</span>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
         
         <Button
           onClick={handleReset}
