@@ -3,11 +3,15 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { BookOpenText, List, X } from 'lucide-react';
+import AuthDialog from '@/components/auth/AuthDialog';
+import UserMenu from '@/components/auth/UserMenu';
+import { useAuth } from '@/context/AuthContext';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,6 +76,11 @@ const Navbar = () => {
           ))}
         </nav>
 
+        {/* Auth Components for desktop */}
+        <div className="hidden md:flex items-center gap-2">
+          {user ? <UserMenu /> : <AuthDialog />}
+        </div>
+
         {/* Mobile Menu Button */}
         <Button 
           variant="ghost" 
@@ -100,6 +109,11 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
+              
+              {/* Auth for mobile */}
+              <div className="mt-4">
+                {user ? <UserMenu /> : <AuthDialog />}
+              </div>
             </nav>
           </div>
         )}

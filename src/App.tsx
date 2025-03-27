@@ -9,31 +9,36 @@ import Reader from "./pages/Reader";
 import Resources from "./pages/Resources";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import AuthCallback from "./pages/AuthCallback";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+import { AuthProvider } from "./context/AuthContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <div className="flex flex-col min-h-screen">
-          <Navbar />
-          <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/reader" element={<Reader />} />
-              <Route path="/resources" element={<Resources />} />
-              <Route path="/about" element={<About />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <div className="flex flex-col min-h-screen">
+            <Navbar />
+            <main className="flex-grow">
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/reader" element={<Reader />} />
+                <Route path="/resources" element={<Resources />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
