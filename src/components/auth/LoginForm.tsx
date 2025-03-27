@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
-import { Google } from 'lucide-react';
+import { Mail } from 'lucide-react';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -62,7 +62,7 @@ const LoginForm = ({ onSuccess }: LoginFormProps) => {
         {isGoogleLoading ? (
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         ) : (
-          <Google className="h-4 w-4" />
+          <Mail className="h-4 w-4" />
         )}
         Continue with Google
       </Button>
