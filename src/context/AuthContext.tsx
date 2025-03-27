@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 type AuthContextType = {
@@ -12,6 +12,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  isSupabaseReady: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,9 +21,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSupabaseReady] = useState(isSupabaseConfigured());
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      setIsLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -40,9 +47,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isSupabaseReady]);
 
   const signUp = async (email: string, password: string, name: string) => {
+    if (!isSupabaseReady) {
+      toast({
+        title: "Supabase not configured",
+        description: "Please configure Supabase credentials to use authentication features.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signUp({
@@ -73,6 +89,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseReady) {
+      toast({
+        title: "Supabase not configured",
+        description: "Please configure Supabase credentials to use authentication features.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
@@ -98,6 +123,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signInWithGoogle = async () => {
+    if (!isSupabaseReady) {
+      toast({
+        title: "Supabase not configured",
+        description: "Please configure Supabase credentials to use authentication features.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -119,6 +153,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (!isSupabaseReady) {
+      return;
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signOut();
@@ -146,7 +184,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signUp,
     signIn,
     signInWithGoogle,
-    signOut
+    signOut,
+    isSupabaseReady
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

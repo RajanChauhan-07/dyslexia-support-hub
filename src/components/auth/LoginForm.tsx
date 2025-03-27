@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { Mail } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -28,7 +29,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const LoginForm = ({ onSuccess }: LoginFormProps) => {
-  const { signIn, signInWithGoogle, isLoading } = useAuth();
+  const { signIn, signInWithGoogle, isLoading, isSupabaseReady } = useAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const form = useForm<FormValues>({
@@ -49,6 +50,16 @@ const LoginForm = ({ onSuccess }: LoginFormProps) => {
     await signInWithGoogle();
     setIsGoogleLoading(false);
   };
+
+  if (!isSupabaseReady) {
+    return (
+      <Alert className="mb-4">
+        <AlertDescription>
+          Supabase is not configured properly. Please add your Supabase URL and anon key to enable authentication.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-4 py-2">
