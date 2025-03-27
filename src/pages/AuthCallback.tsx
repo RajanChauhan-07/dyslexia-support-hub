@@ -1,18 +1,12 @@
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if Supabase is configured
-    if (!isSupabaseConfigured()) {
-      navigate('/', { replace: true });
-      return;
-    }
-
     // Handle the OAuth callback
     const handleAuthCallback = async () => {
       const { error } = await supabase.auth.getSession();

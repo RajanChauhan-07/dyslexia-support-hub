@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 type AuthContextType = {
@@ -21,15 +20,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSupabaseReady] = useState(isSupabaseConfigured());
+  const [isSupabaseReady] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!isSupabaseReady) {
-      setIsLoading(false);
-      return;
-    }
-
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -47,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
 
     return () => subscription.unsubscribe();
-  }, [isSupabaseReady]);
+  }, []);
 
   const signUp = async (email: string, password: string, name: string) => {
     if (!isSupabaseReady) {

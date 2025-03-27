@@ -1,22 +1,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+// Initialize Supabase client with your project credentials
+const supabaseUrl = 'https://zffrzrctjfzywbxpkbfg.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmZnJ6cmN0amZ6eXdieHBrYmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxMDYyMDAsImV4cCI6MjA1ODY4MjIwMH0.1Qqbz2ESSgKy_6BeHi_Rb84aYYctiCFTqhgHYSUPsro';
 
-// Check if valid credentials are provided
-const isValidUrl = supabaseUrl !== 'https://example.supabase.co' && supabaseUrl.startsWith('https://');
-const isValidKey = supabaseAnonKey !== 'your-anon-key' && supabaseAnonKey.length > 10;
-
-if (!isValidUrl || !isValidKey) {
-  console.warn(
-    'Invalid Supabase credentials. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables. ' +
-    'Authentication features will not work properly.'
-  );
-}
-
+// Create and export the Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Function to check if Supabase is properly configured
-export const isSupabaseConfigured = () => isValidUrl && isValidKey;
+// Function to check if Supabase is properly configured (will always be true now)
+export const isSupabaseConfigured = () => true;
