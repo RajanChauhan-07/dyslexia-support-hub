@@ -34,11 +34,11 @@ const Reader = () => {
   };
 
   return (
-    <div className="min-h-screen pt-28 pb-16">
+    <div className="min-h-screen pt-24 pb-8">
       <div className="container px-4 mx-auto">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold mb-4">Dyslexia-Friendly Reader</h1>
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">Dyslexia-Friendly Reader</h1>
             <p className="text-lg text-muted-foreground">
               Customize your reading experience with fonts, sizes, and colors that work best for you.
             </p>
@@ -75,8 +75,8 @@ const Reader = () => {
             </div>
           </div>
           
-          <div className="mt-12 glass-panel p-6 rounded-xl">
-            <h2 className="text-xl font-medium mb-4">How to Use This Tool</h2>
+          <div className="mt-8 glass-panel p-5 rounded-xl">
+            <h2 className="text-xl font-medium mb-3">How to Use This Tool</h2>
             <ul className="space-y-2 text-muted-foreground">
               <li>1. Paste or type any text you want to read in the text area.</li>
               <li>2. Adjust the font settings to make reading more comfortable.</li>

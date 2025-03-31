@@ -10,6 +10,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useTheme } from '@/context/ThemeContext';
 
 interface TextCustomizerProps {
   fontFamily: string;
@@ -42,6 +43,8 @@ const TextCustomizer = ({
   setBackgroundColor,
   resetToDefaults
 }: TextCustomizerProps) => {
+  const { theme } = useTheme();
+  
   const fonts = [
     { value: 'OpenDyslexic, sans-serif', label: 'OpenDyslexic' },
     { value: 'Inter, sans-serif', label: 'Inter' },
@@ -62,7 +65,7 @@ const TextCustomizer = ({
 
   return (
     <div className="glass-panel rounded-xl p-6 animate-fade-in">
-      <h2 className="text-xl font-medium mb-6">Customize Your Reading Experience</h2>
+      <h2 className="text-xl font-medium mb-6">Customize Reading</h2>
 
       <Tabs defaultValue="font">
         <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -141,32 +144,32 @@ const TextCustomizer = ({
         </TabsContent>
         
         <TabsContent value="colors" className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {colorThemes.map((theme) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
+            {colorThemes.map((colorTheme) => (
               <button
-                key={theme.name}
+                key={colorTheme.name}
                 className={`flex flex-col items-center p-3 border rounded-lg transition-all ${
-                  textColor === theme.text && backgroundColor === theme.bg
+                  textColor === colorTheme.text && backgroundColor === colorTheme.bg
                     ? 'ring-2 ring-primary'
                     : 'hover:border-primary/50'
                 }`}
                 onClick={() => {
-                  setTextColor(theme.text);
-                  setBackgroundColor(theme.bg);
+                  setTextColor(colorTheme.text);
+                  setBackgroundColor(colorTheme.bg);
                 }}
               >
                 <div 
                   className="w-full h-12 rounded mb-2"
-                  style={{backgroundColor: theme.bg, border: '1px solid rgba(0,0,0,0.1)'}}
+                  style={{backgroundColor: colorTheme.bg, border: '1px solid rgba(0,0,0,0.1)'}}
                 >
                   <div 
                     className="h-full flex items-center justify-center font-medium"
-                    style={{color: theme.text}}
+                    style={{color: colorTheme.text}}
                   >
                     Aa
                   </div>
                 </div>
-                <span className="text-sm">{theme.name}</span>
+                <span className="text-sm">{colorTheme.name}</span>
               </button>
             ))}
           </div>

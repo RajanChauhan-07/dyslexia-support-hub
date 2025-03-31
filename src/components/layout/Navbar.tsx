@@ -2,16 +2,18 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { BookOpenText, List, X } from 'lucide-react';
+import { BookOpenText, List, X, Moon, Sun } from 'lucide-react';
 import AuthDialog from '@/components/auth/AuthDialog';
 import UserMenu from '@/components/auth/UserMenu';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,19 +36,14 @@ const Navbar = () => {
     closeMobileMenu();
   }, [location.pathname]);
 
-  const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Reader', path: '/reader' },
-    { name: 'Resources', path: '/resources' },
-    { name: 'About', path: '/about' },
-  ];
-
-  const isActive = (path: string) => location.pathname === path;
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <header 
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'py-2 bg-white/80 dark:bg-black/50 backdrop-blur-md shadow-sm' : 'py-4 bg-transparent'
+        isScrolled ? 'py-2 bg-background/80 backdrop-blur-md shadow-sm' : 'py-4 bg-transparent'
       }`}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
@@ -60,56 +57,42 @@ const Navbar = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`text-sm font-medium transition-all hover:text-primary ${
-                isActive(link.path) 
-                  ? 'text-primary relative after:absolute after:bottom-[-4px] after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full' 
-                  : 'text-foreground/80 hover:text-foreground'
-              }`}
-            >
-              {link.name}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Auth Components for desktop */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
           {user ? <UserMenu /> : <AuthDialog />}
         </div>
 
         {/* Mobile Menu Button */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="md:hidden"
-          onClick={toggleMobileMenu}
-          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-        >
-          {isMobileMenuOpen ? <X className="h-5 w-5" /> : <List className="h-5 w-5" />}
-        </Button>
+        <div className="flex items-center gap-2 md:hidden">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={toggleMobileMenu}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <List className="h-5 w-5" />}
+          </Button>
+        </div>
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 pt-16 bg-white/95 dark:bg-black/95 z-40 animate-fade-in md:hidden">
+          <div className="fixed inset-0 pt-16 bg-background/95 z-40 animate-fade-in md:hidden">
             <nav className="flex flex-col items-center justify-center gap-8 h-full">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`text-lg font-medium transition-all animate-slide-down ${
-                    isActive(link.path) ? 'text-primary' : 'text-foreground/80 hover:text-primary'
-                  }`}
-                  style={{ animationDelay: `${navLinks.indexOf(link) * 0.05}s` }}
-                  onClick={closeMobileMenu}
-                >
-                  {link.name}
-                </Link>
-              ))}
-              
               {/* Auth for mobile */}
               <div className="mt-4">
                 {user ? <UserMenu /> : <AuthDialog />}
