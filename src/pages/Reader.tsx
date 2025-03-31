@@ -34,7 +34,7 @@ const Reader = () => {
   };
 
   return (
-    <div className="min-h-screen pt-16 pb-8">
+    <div className="min-h-screen w-full pt-16 pb-8">
       <div className="container mx-auto px-4 max-w-full">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold mb-2">Dyslexia-Friendly Reader</h1>
@@ -44,7 +44,7 @@ const Reader = () => {
         </div>
         
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="md:w-1/4">
+          <div className="md:w-1/4 w-full">
             <TextCustomizer
               fontFamily={fontFamily}
               setFontFamily={setFontFamily}
@@ -62,7 +62,7 @@ const Reader = () => {
             />
           </div>
           
-          <div className="md:w-3/4">
+          <div className="md:w-3/4 w-full">
             <TextReader
               fontFamily={fontFamily}
               fontSize={fontSize}
@@ -72,17 +72,6 @@ const Reader = () => {
               backgroundColor={backgroundColor}
             />
           </div>
-        </div>
-        
-        <div className="mt-8 glass-panel p-5 rounded-xl max-w-4xl mx-auto">
-          <h2 className="text-xl font-medium mb-3">How to Use This Tool</h2>
-          <ul className="space-y-2 text-muted-foreground">
-            <li>1. Paste or type any text you want to read in the text area.</li>
-            <li>2. Adjust the font settings to make reading more comfortable.</li>
-            <li>3. Try different color themes to reduce eye strain.</li>
-            <li>4. Use the "Read Aloud" feature to have the text read to you.</li>
-            <li>5. Save your preferred settings for next time.</li>
-          </ul>
         </div>
       </div>
     </div>

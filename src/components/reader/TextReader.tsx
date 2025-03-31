@@ -109,16 +109,16 @@ const TextReader = ({
   };
 
   return (
-    <div className="w-full animate-fade-in">
+    <div className="w-full h-full animate-fade-in">
       <div 
-        className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4"
+        className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full"
         style={{ backgroundColor }}
       >
         <Textarea
           value={text}
           onChange={handleTextChange}
           placeholder="Enter or paste text here to read with your preferred settings..."
-          className="border-none focus-visible:ring-1 min-h-[450px] p-6 w-full resize-y"
+          className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y"
           style={{
             fontFamily,
             fontSize: `${fontSize}px`,
