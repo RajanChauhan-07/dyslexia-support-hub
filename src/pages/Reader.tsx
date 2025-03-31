@@ -17,6 +17,12 @@ const Reader = () => {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    
+    // Initialize speech synthesis voices
+    if ('speechSynthesis' in window) {
+      // Some browsers need this to initialize voices
+      window.speechSynthesis.getVoices();
+    }
   }, []);
 
   const resetToDefaults = () => {

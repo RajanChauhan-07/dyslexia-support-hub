@@ -3,13 +3,20 @@ import { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { PlayCircle, PauseCircle, RotateCcw } from 'lucide-react';
+import { PlayCircle, PauseCircle, RotateCcw, Volume2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { 
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface TextReaderProps {
   fontFamily: string;
@@ -19,6 +26,21 @@ interface TextReaderProps {
   textColor: string;
   backgroundColor: string;
 }
+
+// Voice options
+interface VoiceOption {
+  id: string;
+  name: string;
+  gender: 'male' | 'female';
+}
+
+const voices: VoiceOption[] = [
+  { id: 'default', name: 'Default', gender: 'female' },
+  { id: 'male1', name: 'Daniel', gender: 'male' },
+  { id: 'male2', name: 'James', gender: 'male' },
+  { id: 'female1', name: 'Sarah', gender: 'female' },
+  { id: 'female2', name: 'Emily', gender: 'female' },
+];
 
 const TextReader = ({
   fontFamily,
@@ -31,6 +53,7 @@ const TextReader = ({
   const [text, setText] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
+  const [selectedVoice, setSelectedVoice] = useState<string>('default');
   const { toast } = useToast();
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -61,6 +84,31 @@ const TextReader = ({
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = speechRate; // Apply the selected speech rate
+      
+      // Set voice if available
+      if (selectedVoice !== 'default') {
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Try to match voice by name (simplified approach)
+        // In a real app, you might want to have more specific voice mappings
+        const voiceData = voices.find(voice => {
+          const voiceName = voice.name.toLowerCase();
+          if (selectedVoice === 'male1' && (voiceName.includes('daniel') || voiceName.includes('male'))) {
+            return true;
+          } else if (selectedVoice === 'male2' && (voiceName.includes('james') || voiceName.includes('male'))) {
+            return true;
+          } else if (selectedVoice === 'female1' && (voiceName.includes('sarah') || voiceName.includes('female'))) {
+            return true;
+          } else if (selectedVoice === 'female2' && (voiceName.includes('emily') || voiceName.includes('female'))) {
+            return true;
+          }
+          return false;
+        });
+        
+        if (voiceData) {
+          utterance.voice = voiceData;
+        }
+      }
       
       utterance.onend = () => {
         setIsSpeaking(false);
@@ -97,6 +145,16 @@ const TextReader = ({
     setSpeechRate(value[0]);
     
     // If already speaking, restart with new rate
+    if (isSpeaking) {
+      stopSpeech();
+      startSpeech();
+    }
+  };
+
+  const handleVoiceChange = (value: string) => {
+    setSelectedVoice(value);
+    
+    // If already speaking, restart with new voice
     if (isSpeaking) {
       stopSpeech();
       startSpeech();
@@ -175,6 +233,24 @@ const TextReader = ({
             </div>
           </PopoverContent>
         </Popover>
+        
+        <Select 
+          value={selectedVoice}
+          onValueChange={handleVoiceChange}
+          disabled={!('speechSynthesis' in window)}
+        >
+          <SelectTrigger className="w-[160px] rounded-full">
+            <Volume2 className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Select Voice" />
+          </SelectTrigger>
+          <SelectContent>
+            {voices.map((voice) => (
+              <SelectItem key={voice.id} value={voice.id}>
+                {voice.name} ({voice.gender})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         
         <Button
           onClick={handleReset}
