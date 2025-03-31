@@ -118,7 +118,7 @@ const TextReader = ({
           value={text}
           onChange={handleTextChange}
           placeholder="Enter or paste text here to read with your preferred settings..."
-          className="border-none focus-visible:ring-1 min-h-[300px] p-6 w-full resize-y"
+          className="border-none focus-visible:ring-1 min-h-[450px] p-6 w-full resize-y"
           style={{
             fontFamily,
             fontSize: `${fontSize}px`,
@@ -130,7 +130,7 @@ const TextReader = ({
         />
       </div>
       
-      <div className="flex flex-wrap gap-3 justify-center items-center">
+      <div className="flex flex-wrap gap-3 justify-start items-center">
         <Button
           onClick={toggleSpeech}
           className="rounded-full px-6 transition-all gap-2"
