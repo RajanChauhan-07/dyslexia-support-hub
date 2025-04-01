@@ -1,9 +1,17 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { PlayCircle, PauseCircle, RotateCcw, Volume2 } from 'lucide-react';
+import { 
+  PlayCircle, 
+  PauseCircle, 
+  RotateCcw, 
+  Volume2, 
+  SkipForward, 
+  SkipBack,
+  AlertCircle
+} from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { 
   Popover,
@@ -17,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface TextReaderProps {
   fontFamily: string;
@@ -49,11 +58,15 @@ const TextReader = ({
 }: TextReaderProps) => {
   const [text, setText] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
   const [selectedVoice, setSelectedVoice] = useState<string>('female');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isVoicesLoaded, setIsVoicesLoaded] = useState<boolean>(false);
   const [isVoiceChanging, setIsVoiceChanging] = useState<boolean>(false);
+  const [showSpeechError, setShowSpeechError] = useState<boolean>(false);
+  const [currentTextPosition, setCurrentTextPosition] = useState<number>(0);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
 
   // Load and initialize voices when component mounts
@@ -89,6 +102,11 @@ const TextReader = ({
     };
   }, []);
 
+  // Reset speech error indicator when text changes
+  useEffect(() => {
+    setShowSpeechError(false);
+  }, [text]);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
@@ -98,6 +116,7 @@ const TextReader = ({
     if (isSpeaking) {
       stopSpeech();
     }
+    setCurrentTextPosition(0);
     toast({
       title: "Text Reset",
       description: "The reader has been cleared.",
@@ -145,47 +164,74 @@ const TextReader = ({
     return genderFallback || availableVoices[0]; // Last resort: return first available voice
   };
 
-  const startSpeech = () => {
+  const createUtterance = (startFrom: number = 0) => {
+    setShowSpeechError(false);
+    
     if (!text.trim()) {
       toast({
         title: "Nothing to read",
         description: "Please enter some text first.",
         variant: "destructive"
       });
-      return;
+      return null;
     }
 
+    // Determine text to speak based on position
+    const textToSpeak = startFrom > 0 ? text.substring(startFrom) : text;
+    
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.rate = speechRate;
+    
+    // Set selected voice if available
+    const voice = findMatchingVoice(selectedVoice);
+    if (voice) {
+      utterance.voice = voice;
+    }
+    
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setIsPaused(false);
+      setIsVoiceChanging(false);
+      setCurrentTextPosition(0);
+      utteranceRef.current = null;
+    };
+    
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      setIsSpeaking(false);
+      setIsPaused(false);
+      setIsVoiceChanging(false);
+      setShowSpeechError(true);
+      utteranceRef.current = null;
+      
+      // Don't show toast if we already have visual error indicator
+      if (!showSpeechError) {
+        toast({
+          title: "Speech Error",
+          description: "There was an error with the speech synthesis. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    // Set starting position for playback tracking
+    setCurrentTextPosition(startFrom);
+    
+    return utterance;
+  };
+
+  const startSpeech = (fromPosition: number = 0) => {
     if ('speechSynthesis' in window) {
       // Cancel any ongoing speech first
       window.speechSynthesis.cancel();
       
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = speechRate;
+      const utterance = createUtterance(fromPosition);
+      if (!utterance) return;
       
-      // Set selected voice if available
-      const voice = findMatchingVoice(selectedVoice);
-      if (voice) {
-        utterance.voice = voice;
-      }
-      
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        setIsVoiceChanging(false);
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event);
-        setIsSpeaking(false);
-        setIsVoiceChanging(false);
-        toast({
-          title: "Speech Error",
-          description: "There was an error with the speech synthesis.",
-          variant: "destructive"
-        });
-      };
-      
+      utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
       setIsSpeaking(true);
+      setIsPaused(false);
     } else {
       toast({
         title: "Speech Synthesis Not Supported",
@@ -199,15 +245,87 @@ const TextReader = ({
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      setIsPaused(false);
       setIsVoiceChanging(false);
+      utteranceRef.current = null;
     }
   };
 
-  const toggleSpeech = () => {
+  const pauseSpeech = () => {
+    if ('speechSynthesis' in window && isSpeaking) {
+      // Estimate current position in text
+      // This is an approximation - precise tracking would require more complex implementation
+      const timeSinceStart = Date.now() - (window as any).speechStartTime;
+      const charPerMs = 0.025; // Rough estimate of speech rate chars per ms
+      const charsSpoken = Math.min(
+        Math.floor(timeSinceStart * charPerMs * speechRate),
+        text.length - currentTextPosition
+      );
+      const estimatedPosition = currentTextPosition + charsSpoken;
+      
+      setCurrentTextPosition(estimatedPosition);
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeSpeech = () => {
+    if ('speechSynthesis' in window && isSpeaking && isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+    }
+  };
+
+  const skipForward = () => {
     if (isSpeaking) {
+      // Calculate new position (approximately 10 seconds forward)
+      const charsPerSecond = 15 * speechRate; // Rough estimate: ~15 chars per second
+      const skipChars = Math.floor(charsPerSecond * 10);
+      const newPosition = Math.min(
+        currentTextPosition + skipChars, 
+        text.length - 1
+      );
+      
+      // Restart from new position
       stopSpeech();
+      startSpeech(newPosition);
+      
+      toast({
+        title: "Skipped Forward",
+        description: "Jumped ahead by 10 seconds",
+      });
+    }
+  };
+
+  const skipBackward = () => {
+    if (isSpeaking) {
+      // Calculate new position (approximately 10 seconds backward)
+      const charsPerSecond = 15 * speechRate; // Rough estimate: ~15 chars per second
+      const skipChars = Math.floor(charsPerSecond * 10);
+      const newPosition = Math.max(currentTextPosition - skipChars, 0);
+      
+      // Restart from new position
+      stopSpeech();
+      startSpeech(newPosition);
+      
+      toast({
+        title: "Skipped Backward",
+        description: "Jumped back by 10 seconds",
+      });
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (!isSpeaking) {
+      // Start speech from beginning or saved position
+      startSpeech(currentTextPosition);
+      (window as any).speechStartTime = Date.now();
+    } else if (isPaused) {
+      // Resume if paused
+      resumeSpeech();
     } else {
-      startSpeech();
+      // Pause if speaking
+      pauseSpeech();
     }
   };
 
@@ -216,8 +334,9 @@ const TextReader = ({
     
     // If already speaking, restart with new rate
     if (isSpeaking) {
+      const currentPos = currentTextPosition;
       stopSpeech();
-      startSpeech();
+      startSpeech(currentPos);
     }
   };
 
@@ -227,10 +346,11 @@ const TextReader = ({
     
     // If already speaking, restart with new voice
     if (isSpeaking) {
+      const currentPos = currentTextPosition;
       stopSpeech();
       // Small delay to ensure speech is fully stopped
       setTimeout(() => {
-        startSpeech();
+        startSpeech(currentPos);
       }, 50);
     } else {
       // Even if not speaking, we'll reset the changing state after a moment
@@ -252,6 +372,16 @@ const TextReader = ({
 
   return (
     <div className="w-full h-full animate-fade-in">
+      {showSpeechError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Speech Error</AlertTitle>
+          <AlertDescription>
+            There was an error with the speech synthesis. Please try again or try a different voice.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div 
         className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full"
         style={{ backgroundColor }}
@@ -274,21 +404,49 @@ const TextReader = ({
       
       <div className="flex flex-wrap gap-3 justify-start items-center">
         <Button
-          onClick={toggleSpeech}
+          onClick={togglePlayPause}
           className="rounded-full px-6 transition-all gap-2"
-          variant={isSpeaking ? "destructive" : "default"}
+          variant={isSpeaking ? (isPaused ? "outline" : "destructive") : "default"}
           disabled={isVoiceChanging}
         >
-          {isSpeaking ? (
-            <>
-              <PauseCircle className="h-5 w-5" /> Stop Reading
-            </>
-          ) : (
+          {!isSpeaking ? (
             <>
               <PlayCircle className="h-5 w-5" /> Read Aloud
             </>
+          ) : isPaused ? (
+            <>
+              <PlayCircle className="h-5 w-5" /> Resume
+            </>
+          ) : (
+            <>
+              <PauseCircle className="h-5 w-5" /> Pause
+            </>
           )}
         </Button>
+        
+        <div className="flex gap-2">
+          <Button
+            onClick={skipBackward}
+            variant="outline"
+            size="icon"
+            className="rounded-full"
+            disabled={!isSpeaking || isVoiceChanging}
+            title="Skip back 10 seconds"
+          >
+            <SkipBack className="h-4 w-4" />
+          </Button>
+          
+          <Button
+            onClick={skipForward}
+            variant="outline"
+            size="icon"
+            className="rounded-full"
+            disabled={!isSpeaking || isVoiceChanging}
+            title="Skip forward 10 seconds"
+          >
+            <SkipForward className="h-4 w-4" />
+          </Button>
+        </div>
         
         <Popover>
           <PopoverTrigger asChild>
