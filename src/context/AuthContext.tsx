@@ -128,15 +128,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
+      // Set loading state but don't set it to false on completion
+      // since we'll be redirected away from the app
       setIsLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
       
       if (error) throw error;
+      
+      // If data.url is available, redirect the user to the OAuth provider
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('OAuth redirect URL not returned from Supabase');
+      }
     } catch (error) {
       toast({
         title: "Error signing in with Google",
