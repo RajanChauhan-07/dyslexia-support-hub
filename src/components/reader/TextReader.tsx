@@ -27,7 +27,7 @@ interface TextReaderProps {
   backgroundColor: string;
 }
 
-// Voice options
+// Voice options - simplified to just two options
 interface VoiceOption {
   id: string;
   name: string;
@@ -35,11 +35,8 @@ interface VoiceOption {
 }
 
 const voiceOptions: VoiceOption[] = [
-  { id: 'default', name: 'Default', gender: 'female' },
-  { id: 'male1', name: 'Daniel', gender: 'male' },
-  { id: 'male2', name: 'James', gender: 'male' },
-  { id: 'female1', name: 'Sarah', gender: 'female' },
-  { id: 'female2', name: 'Emily', gender: 'female' },
+  { id: 'female', name: 'Emily', gender: 'female' },
+  { id: 'male', name: 'Daniel', gender: 'male' },
 ];
 
 const TextReader = ({
@@ -53,7 +50,7 @@ const TextReader = ({
   const [text, setText] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
-  const [selectedVoice, setSelectedVoice] = useState<string>('default');
+  const [selectedVoice, setSelectedVoice] = useState<string>('female');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [isVoicesLoaded, setIsVoicesLoaded] = useState<boolean>(false);
   const [isVoiceChanging, setIsVoiceChanging] = useState<boolean>(false);
@@ -109,16 +106,14 @@ const TextReader = ({
 
   // Find the best matching voice from available system voices
   const findMatchingVoice = (voiceId: string): SpeechSynthesisVoice | null => {
-    if (!availableVoices.length || voiceId === 'default') {
+    if (!availableVoices.length) {
       return null; // Use default voice
     }
 
     // Define preferred voice names for our voice IDs
     const voicePreferences: Record<string, string[]> = {
-      'male1': ['daniel', 'david', 'male', 'man'],
-      'male2': ['james', 'john', 'male', 'man'],
-      'female1': ['sarah', 'samantha', 'female', 'woman'],
-      'female2': ['emily', 'karen', 'female', 'woman']
+      'male': ['daniel', 'david', 'male', 'man'],
+      'female': ['emily', 'samantha', 'female', 'woman']
     };
 
     // Try to find voice by preference
@@ -141,7 +136,7 @@ const TextReader = ({
     }
 
     // If all else fails, try to match by gender
-    const isFemalePref = voiceId.includes('female');
+    const isFemalePref = voiceId === 'female';
     const genderFallback = availableVoices.find(
       v => isFemalePref ? v.name.toLowerCase().includes('female') || !v.name.toLowerCase().includes('male') 
                         : v.name.toLowerCase().includes('male')
