@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import TextReader from '@/components/reader/TextReader';
 import TextCustomizer from '@/components/reader/TextCustomizer';
 import { useToast } from '@/components/ui/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Reader = () => {
   // Default settings
@@ -14,6 +15,7 @@ const Reader = () => {
   const [backgroundColor, setBackgroundColor] = useState<string>('#f8f5de');
   
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -59,36 +61,71 @@ const Reader = () => {
           </p>
         </div>
         
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="md:w-1/4 w-full">
-            <TextCustomizer
-              fontFamily={fontFamily}
-              setFontFamily={setFontFamily}
-              fontSize={fontSize}
-              setFontSize={setFontSize}
-              lineSpacing={lineSpacing}
-              setLineSpacing={setLineSpacing}
-              letterSpacing={letterSpacing}
-              setLetterSpacing={setLetterSpacing}
-              textColor={textColor}
-              setTextColor={setTextColor}
-              backgroundColor={backgroundColor}
-              setBackgroundColor={setBackgroundColor}
-              resetToDefaults={resetToDefaults}
-            />
+        {isMobile ? (
+          // Mobile layout - Reader first, then customizer
+          <div className="flex flex-col gap-6">
+            <div className="w-full">
+              <TextReader
+                fontFamily={fontFamily}
+                fontSize={fontSize}
+                lineSpacing={lineSpacing}
+                letterSpacing={letterSpacing}
+                textColor={textColor}
+                backgroundColor={backgroundColor}
+              />
+            </div>
+            
+            <div className="w-full">
+              <TextCustomizer
+                fontFamily={fontFamily}
+                setFontFamily={setFontFamily}
+                fontSize={fontSize}
+                setFontSize={setFontSize}
+                lineSpacing={lineSpacing}
+                setLineSpacing={setLineSpacing}
+                letterSpacing={letterSpacing}
+                setLetterSpacing={setLetterSpacing}
+                textColor={textColor}
+                setTextColor={setTextColor}
+                backgroundColor={backgroundColor}
+                setBackgroundColor={setBackgroundColor}
+                resetToDefaults={resetToDefaults}
+              />
+            </div>
           </div>
-          
-          <div className="md:w-3/4 w-full">
-            <TextReader
-              fontFamily={fontFamily}
-              fontSize={fontSize}
-              lineSpacing={lineSpacing}
-              letterSpacing={letterSpacing}
-              textColor={textColor}
-              backgroundColor={backgroundColor}
-            />
+        ) : (
+          // Desktop layout - Side by side
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="md:w-1/4 w-full">
+              <TextCustomizer
+                fontFamily={fontFamily}
+                setFontFamily={setFontFamily}
+                fontSize={fontSize}
+                setFontSize={setFontSize}
+                lineSpacing={lineSpacing}
+                setLineSpacing={setLineSpacing}
+                letterSpacing={letterSpacing}
+                setLetterSpacing={setLetterSpacing}
+                textColor={textColor}
+                setTextColor={setTextColor}
+                backgroundColor={backgroundColor}
+                setBackgroundColor={setBackgroundColor}
+                resetToDefaults={resetToDefaults}
+              />
+            </div>
+            
+            <div className="md:w-3/4 w-full">
+              <TextReader
+                fontFamily={fontFamily}
+                fontSize={fontSize}
+                lineSpacing={lineSpacing}
+                letterSpacing={letterSpacing}
+                textColor={textColor}
+                backgroundColor={backgroundColor}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
