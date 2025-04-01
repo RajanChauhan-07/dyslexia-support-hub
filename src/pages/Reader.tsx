@@ -18,10 +18,20 @@ const Reader = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     
-    // Initialize speech synthesis voices
+    // Pre-load speech synthesis voices
     if ('speechSynthesis' in window) {
-      // Some browsers need this to initialize voices
-      window.speechSynthesis.getVoices();
+      // Force initialization of voices
+      speechSynthesis.getVoices();
+      
+      // Some browsers need a spoken utterance to fully initialize
+      const initUtterance = new SpeechSynthesisUtterance('');
+      initUtterance.volume = 0; // Silent
+      speechSynthesis.speak(initUtterance);
+      
+      // Cancel it immediately
+      setTimeout(() => {
+        speechSynthesis.cancel();
+      }, 10);
     }
   }, []);
 
