@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { LogIn } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -31,6 +32,7 @@ type FormValues = z.infer<typeof formSchema>;
 const LoginForm = ({ onSuccess }: LoginFormProps) => {
   const { signIn, signInWithGoogle, isLoading, isSupabaseReady } = useAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -41,14 +43,34 @@ const LoginForm = ({ onSuccess }: LoginFormProps) => {
   });
 
   const onSubmit = async (values: FormValues) => {
-    await signIn(values.email, values.password);
-    onSuccess();
+    try {
+      await signIn(values.email, values.password);
+      onSuccess();
+    } catch (error) {
+      console.error("Sign in error:", error);
+      toast({
+        title: "Error signing in",
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    await signInWithGoogle();
-    setIsGoogleLoading(false);
+    try {
+      setIsGoogleLoading(true);
+      await signInWithGoogle();
+      // Note: We don't call onSuccess here since the page will redirect to the callback URL
+    } catch (error) {
+      console.error("Google sign in error:", error);
+      toast({
+        title: "Error signing in with Google",
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   if (!isSupabaseReady) {

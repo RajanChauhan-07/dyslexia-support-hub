@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Handle the OAuth callback
@@ -19,13 +21,29 @@ const AuthCallback = () => {
         if (error) {
           console.error('Error getting session:', error.message);
           setError(error.message);
+          toast({
+            title: "Authentication failed",
+            description: error.message,
+            variant: "destructive"
+          });
           return;
         }
 
         if (data.session) {
           console.log('Authentication successful');
+          toast({
+            title: "Authentication successful",
+            description: "You have been successfully logged in.",
+          });
         } else {
           console.log('No session found, but no error returned');
+          setError('No session found. Please try logging in again.');
+          toast({
+            title: "Authentication incomplete",
+            description: "No session found. Please try logging in again.",
+            variant: "destructive"
+          });
+          return;
         }
 
         // Redirect to home page
@@ -33,11 +51,16 @@ const AuthCallback = () => {
       } catch (err) {
         console.error('Unexpected error during auth callback:', err);
         setError('An unexpected error occurred during authentication.');
+        toast({
+          title: "Authentication error",
+          description: "An unexpected error occurred during authentication.",
+          variant: "destructive"
+        });
       }
     };
 
     handleAuthCallback();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
