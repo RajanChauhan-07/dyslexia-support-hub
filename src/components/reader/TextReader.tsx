@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ const TextReader = ({
   const [displayText, setDisplayText] = useState<React.ReactNode>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
+  const textContainerRef = useRef<HTMLDivElement>(null);
 
   // Parse text into words whenever text changes
   useEffect(() => {
@@ -104,7 +106,7 @@ const TextReader = ({
     updateDisplayText(currentWordIndex);
   }, [currentWordIndex, words]);
 
-  // Function to update display text with highlighted current word
+  // Add a small debounce for updating the display text to prevent flickering
   const updateDisplayText = (wordIndex: number) => {
     if (!words.length) {
       setDisplayText(null);
@@ -131,11 +133,11 @@ const TextReader = ({
             key={index}
             className={`inline-block ${
               isHighlighted 
-                ? 'bg-primary/80 text-primary-foreground px-1 py-0.5 rounded' 
+                ? 'bg-primary/70 text-primary-foreground px-1 py-0.5 rounded' 
                 : 'px-0.5'
             }`}
             style={{
-              transition: 'all 0.4s ease',
+              transition: 'all 0.4s ease-out',
             }}
           >
             {word}{' '}
@@ -154,6 +156,20 @@ const TextReader = ({
     }
 
     setDisplayText(<>{currentContent}</>);
+    
+    // Scroll to highlighted word if available
+    if (wordIndex >= 0 && textContainerRef.current) {
+      const highlightedElement = textContainerRef.current.querySelector(`span:nth-child(${wordIndex + 1})`);
+      if (highlightedElement) {
+        const containerRect = textContainerRef.current.getBoundingClientRect();
+        const elementRect = highlightedElement.getBoundingClientRect();
+        
+        // Only scroll if element is not fully visible
+        if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
+          highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
   };
 
   // Load and initialize voices when component mounts
@@ -277,13 +293,21 @@ const TextReader = ({
       utterance.voice = voice;
     }
     
-    // Setup word boundary detection
+    // Use a more resilient approach to word boundary detection
+    let wordCount = 0;
+    
     utterance.onboundary = (event) => {
       if (event.name === 'word') {
         // Calculate the word index based on character position
-        const textUpToPosition = text.substring(0, startFrom + event.charIndex);
-        const wordCount = textUpToPosition.split(/\s+/).filter(word => word.length > 0).length;
-        setCurrentWordIndex(wordCount);
+        // Use a timeout to smooth the visual transition
+        setTimeout(() => {
+          // Get the text up to this position
+          const textUpToPosition = text.substring(0, startFrom + event.charIndex);
+          // Count words by splitting on whitespace
+          const wordsBefore = textUpToPosition.split(/\s+/).filter(w => w.length > 0).length;
+          // Set the current word index
+          setCurrentWordIndex(wordsBefore);
+        }, 50); // Small delay to smooth transitions
       }
     };
     
@@ -495,6 +519,7 @@ const TextReader = ({
       >
         {isSpeaking ? (
           <div 
+            ref={textContainerRef}
             className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y overflow-auto text-left"
             style={{
               fontFamily,
