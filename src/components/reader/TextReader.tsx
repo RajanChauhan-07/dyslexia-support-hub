@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -75,7 +74,23 @@ const TextReader = ({
   // Parse text into words whenever text changes
   useEffect(() => {
     if (text) {
-      const parsedWords = text.split(/\s+/).filter(word => word.length > 0);
+      // Preserve new lines when splitting into words by first splitting by newlines
+      // and then splitting each line by spaces, preserving the original formatting
+      const lines = text.split(/\n/).map(line => line.trim());
+      const parsedWords: string[] = [];
+      
+      lines.forEach((line, lineIndex) => {
+        const wordsInLine = line.split(/\s+/).filter(word => word.length > 0);
+        
+        // Add words from this line
+        parsedWords.push(...wordsInLine);
+        
+        // Add a newline marker if not the last line and the line has content
+        if (lineIndex < lines.length - 1 && line.length > 0) {
+          parsedWords.push("\n");
+        }
+      });
+      
       setWords(parsedWords);
       updateDisplayText(-1); // Reset highlighting
     } else {
@@ -96,26 +111,49 @@ const TextReader = ({
       return;
     }
 
-    const highlightedText = words.map((word, index) => {
-      const isHighlighted = index === wordIndex;
-      return (
-        <span
-          key={index}
-          className={`inline-block ${
-            isHighlighted 
-              ? 'bg-primary text-primary-foreground px-1 py-0.5 rounded transition-all duration-300 animate-pulse' 
-              : ''
-          }`}
-          style={{
-            transition: 'all 0.3s ease-in-out',
-          }}
-        >
-          {word}{' '}
-        </span>
-      );
+    let currentContent: JSX.Element[] = [];
+    let lineContent: JSX.Element[] = [];
+    
+    words.forEach((word, index) => {
+      if (word === "\n") {
+        // When we hit a newline, add the current line content to our result
+        currentContent.push(
+          <div key={`line-${index}`} className="mb-2">
+            {[...lineContent]}
+          </div>
+        );
+        // Reset line content for the next line
+        lineContent = [];
+      } else {
+        const isHighlighted = index === wordIndex;
+        lineContent.push(
+          <span
+            key={index}
+            className={`inline-block ${
+              isHighlighted 
+                ? 'bg-primary/80 text-primary-foreground px-1 py-0.5 rounded' 
+                : 'px-0.5'
+            }`}
+            style={{
+              transition: 'all 0.4s ease',
+            }}
+          >
+            {word}{' '}
+          </span>
+        );
+      }
     });
+    
+    // Add any remaining line content
+    if (lineContent.length > 0) {
+      currentContent.push(
+        <div key="final-line" className="mb-2">
+          {lineContent}
+        </div>
+      );
+    }
 
-    setDisplayText(<>{highlightedText}</>);
+    setDisplayText(<>{currentContent}</>);
   };
 
   // Load and initialize voices when component mounts
