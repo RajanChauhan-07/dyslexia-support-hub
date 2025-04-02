@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { BookOpenText, List, X, Moon, Sun } from 'lucide-react';
+import { BookOpenText, List, X, Moon, Sun, ChevronLeft } from 'lucide-react';
 import AuthDialog from '@/components/auth/AuthDialog';
 import UserMenu from '@/components/auth/UserMenu';
 import { useAuth } from '@/context/AuthContext';
@@ -93,6 +93,17 @@ const Navbar = () => {
         {isMobileMenuOpen && (
           <div className="fixed inset-0 pt-16 bg-background/95 z-40 animate-fade-in md:hidden">
             <nav className="flex flex-col items-center justify-center gap-8 h-full">
+              {/* Close/Back Button for mobile menu */}
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={closeMobileMenu}
+                className="absolute top-4 left-4"
+                aria-label="Close menu"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              
               {/* Auth for mobile */}
               <div className="mt-4">
                 {user ? <UserMenu /> : <AuthDialog />}
