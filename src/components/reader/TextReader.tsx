@@ -66,8 +66,57 @@ const TextReader = ({
   const [isVoiceChanging, setIsVoiceChanging] = useState<boolean>(false);
   const [showSpeechError, setShowSpeechError] = useState<boolean>(false);
   const [currentTextPosition, setCurrentTextPosition] = useState<number>(0);
+  const [words, setWords] = useState<string[]>([]);
+  const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
+  const [displayText, setDisplayText] = useState<React.ReactNode>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
+
+  // Parse text into words whenever text changes
+  useEffect(() => {
+    if (text) {
+      const parsedWords = text.split(/\s+/).filter(word => word.length > 0);
+      setWords(parsedWords);
+      updateDisplayText(-1); // Reset highlighting
+    } else {
+      setWords([]);
+      setDisplayText(null);
+    }
+  }, [text]);
+
+  // Update display text with highlighting whenever current word changes
+  useEffect(() => {
+    updateDisplayText(currentWordIndex);
+  }, [currentWordIndex, words]);
+
+  // Function to update display text with highlighted current word
+  const updateDisplayText = (wordIndex: number) => {
+    if (!words.length) {
+      setDisplayText(null);
+      return;
+    }
+
+    const highlightedText = words.map((word, index) => {
+      const isHighlighted = index === wordIndex;
+      return (
+        <span
+          key={index}
+          className={`inline-block ${
+            isHighlighted 
+              ? 'bg-primary text-primary-foreground px-1 py-0.5 rounded transition-all duration-300 animate-pulse' 
+              : ''
+          }`}
+          style={{
+            transition: 'all 0.3s ease-in-out',
+          }}
+        >
+          {word}{' '}
+        </span>
+      );
+    });
+
+    setDisplayText(<>{highlightedText}</>);
+  };
 
   // Load and initialize voices when component mounts
   useEffect(() => {
@@ -109,6 +158,7 @@ const TextReader = ({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
+    setCurrentWordIndex(-1); // Reset word index when text changes
   };
 
   const handleReset = () => {
@@ -117,6 +167,7 @@ const TextReader = ({
       stopSpeech();
     }
     setCurrentTextPosition(0);
+    setCurrentWordIndex(-1);
     toast({
       title: "Text Reset",
       description: "The reader has been cleared.",
@@ -188,11 +239,22 @@ const TextReader = ({
       utterance.voice = voice;
     }
     
+    // Setup word boundary detection
+    utterance.onboundary = (event) => {
+      if (event.name === 'word') {
+        // Calculate the word index based on character position
+        const textUpToPosition = text.substring(0, startFrom + event.charIndex);
+        const wordCount = textUpToPosition.split(/\s+/).filter(word => word.length > 0).length;
+        setCurrentWordIndex(wordCount);
+      }
+    };
+    
     utterance.onend = () => {
       setIsSpeaking(false);
       setIsPaused(false);
       setIsVoiceChanging(false);
       setCurrentTextPosition(0);
+      setCurrentWordIndex(-1); // Reset highlighting when done speaking
       utteranceRef.current = null;
     };
     
@@ -202,6 +264,7 @@ const TextReader = ({
       setIsPaused(false);
       setIsVoiceChanging(false);
       setShowSpeechError(true);
+      setCurrentWordIndex(-1); // Reset highlighting on error
       utteranceRef.current = null;
       
       // Don't show toast if we already have visual error indicator
@@ -232,6 +295,11 @@ const TextReader = ({
       window.speechSynthesis.speak(utterance);
       setIsSpeaking(true);
       setIsPaused(false);
+      
+      // Reset word index when starting from beginning
+      if (fromPosition === 0) {
+        setCurrentWordIndex(-1);
+      }
     } else {
       toast({
         title: "Speech Synthesis Not Supported",
@@ -247,6 +315,7 @@ const TextReader = ({
       setIsSpeaking(false);
       setIsPaused(false);
       setIsVoiceChanging(false);
+      setCurrentWordIndex(-1); // Reset highlighting when stopping speech
       utteranceRef.current = null;
     }
   };
@@ -386,20 +455,36 @@ const TextReader = ({
         className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full"
         style={{ backgroundColor }}
       >
-        <Textarea
-          value={text}
-          onChange={handleTextChange}
-          placeholder="Enter or paste text here to read with your preferred settings..."
-          className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y"
-          style={{
-            fontFamily,
-            fontSize: `${fontSize}px`,
-            lineHeight: lineSpacing,
-            letterSpacing: `${letterSpacing}px`,
-            color: textColor,
-            backgroundColor,
-          }}
-        />
+        {isSpeaking ? (
+          <div 
+            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y overflow-auto text-left"
+            style={{
+              fontFamily,
+              fontSize: `${fontSize}px`,
+              lineHeight: lineSpacing,
+              letterSpacing: `${letterSpacing}px`,
+              color: textColor,
+              backgroundColor,
+            }}
+          >
+            {displayText}
+          </div>
+        ) : (
+          <Textarea
+            value={text}
+            onChange={handleTextChange}
+            placeholder="Enter or paste text here to read with your preferred settings..."
+            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y"
+            style={{
+              fontFamily,
+              fontSize: `${fontSize}px`,
+              lineHeight: lineSpacing,
+              letterSpacing: `${letterSpacing}px`,
+              color: textColor,
+              backgroundColor,
+            }}
+          />
+        )}
       </div>
       
       <div className="flex flex-wrap gap-3 justify-start items-center">
