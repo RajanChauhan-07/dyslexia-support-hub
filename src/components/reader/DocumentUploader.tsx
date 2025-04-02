@@ -1,0 +1,137 @@
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Upload, FileText, Loader2 } from 'lucide-react';
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { processDocument } from '@/utils/documentProcessing';
+
+interface DocumentUploaderProps {
+  onTextExtracted: (text: string) => void;
+}
+
+const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    
+    try {
+      // Check file type
+      if (!file.type.includes('pdf') && 
+          !file.type.includes('word') && 
+          !file.type.includes('document') &&
+          !file.type.includes('text/plain')) {
+        throw new Error('Please upload a PDF, Word document, or text file.');
+      }
+      
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('File is too large. Maximum size is 10MB.');
+      }
+      
+      // Process document
+      const extractedText = await processDocument(file);
+      
+      if (!extractedText || extractedText.trim() === '') {
+        throw new Error('No text could be extracted from this document.');
+      }
+      
+      // Pass extracted text to parent component
+      onTextExtracted(extractedText);
+      
+      // Close dialog and show success toast
+      setIsDialogOpen(false);
+      toast({
+        title: "Document Processed",
+        description: `Successfully extracted text from "${file.name}"`,
+      });
+    } catch (error: any) {
+      console.error('Error processing document:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to process document",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <>
+      <Button 
+        onClick={() => setIsDialogOpen(true)} 
+        variant="outline" 
+        className="rounded-full px-6 transition-all gap-2"
+      >
+        <Upload className="h-4 w-4" /> Upload Document
+      </Button>
+      
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>
+              Upload a PDF, Word document, or text file to extract its content for reading.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col items-center justify-center gap-4 p-6 border-2 border-dashed rounded-lg">
+              <FileText className="h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground text-center">
+                Drag and drop your document here or click to browse.
+                <br />
+                Supports PDF, Word, and text files (max 10MB).
+              </p>
+              
+              <label className="w-full">
+                <Button 
+                  variant="default" 
+                  className="w-full"
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Select File
+                    </>
+                  )}
+                </Button>
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" 
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+export default DocumentUploader;

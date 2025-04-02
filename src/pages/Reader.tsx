@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import TextReader from '@/components/reader/TextReader';
 import TextCustomizer from '@/components/reader/TextCustomizer';
-import { useToast } from '@/components/ui/use-toast';
+import DocumentUploader from '@/components/reader/DocumentUploader';
+import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const Reader = () => {
@@ -13,6 +14,7 @@ const Reader = () => {
   const [letterSpacing, setLetterSpacing] = useState<number>(0.5);
   const [textColor, setTextColor] = useState<string>('#0a0a0a');
   const [backgroundColor, setBackgroundColor] = useState<string>('#f8f5de');
+  const [text, setText] = useState<string>(''); // New state to handle extracted text
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -51,14 +53,21 @@ const Reader = () => {
     });
   };
 
+  const handleTextExtracted = (extractedText: string) => {
+    setText(extractedText);
+  };
+
   return (
     <div className="min-h-screen w-full pt-16 pb-8">
       <div className="container mx-auto px-4 max-w-full">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold mb-2">Dyslexia-Friendly Reader</h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-muted-foreground mb-4">
             Customize your reading experience with fonts, sizes, and colors that work best for you.
           </p>
+          <div className="flex justify-center mb-2">
+            <DocumentUploader onTextExtracted={handleTextExtracted} />
+          </div>
         </div>
         
         {isMobile ? (
@@ -72,6 +81,7 @@ const Reader = () => {
                 letterSpacing={letterSpacing}
                 textColor={textColor}
                 backgroundColor={backgroundColor}
+                initialText={text} // Pass extracted text to TextReader
               />
             </div>
             
@@ -122,6 +132,7 @@ const Reader = () => {
                 letterSpacing={letterSpacing}
                 textColor={textColor}
                 backgroundColor={backgroundColor}
+                initialText={text} // Pass extracted text to TextReader
               />
             </div>
           </div>

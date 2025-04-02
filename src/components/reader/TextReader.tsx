@@ -1,8 +1,7 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { 
   PlayCircle, 
   PauseCircle, 
@@ -34,6 +33,7 @@ interface TextReaderProps {
   letterSpacing: number;
   textColor: string;
   backgroundColor: string;
+  initialText?: string;
 }
 
 // Voice options - simplified to just two options
@@ -55,8 +55,9 @@ const TextReader = ({
   letterSpacing,
   textColor,
   backgroundColor,
+  initialText = '',
 }: TextReaderProps) => {
-  const [text, setText] = useState<string>('');
+  const [text, setText] = useState<string>(initialText);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
@@ -73,40 +74,50 @@ const TextReader = ({
   const { toast } = useToast();
   const textContainerRef = useRef<HTMLDivElement>(null);
 
-  // Parse text into words whenever text changes
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText);
+      
+      if (isSpeaking) {
+        stopSpeech();
+      }
+      
+      setCurrentWordIndex(-1);
+      setCurrentTextPosition(0);
+      
+      if (textContainerRef.current) {
+        textContainerRef.current.scrollTop = 0;
+      }
+    }
+  }, [initialText]);
+
   useEffect(() => {
     if (text) {
-      // Preserve new lines when splitting into words by first splitting by newlines
-      // and then splitting each line by spaces, preserving the original formatting
       const lines = text.split(/\n/).map(line => line.trim());
       const parsedWords: string[] = [];
       
       lines.forEach((line, lineIndex) => {
         const wordsInLine = line.split(/\s+/).filter(word => word.length > 0);
         
-        // Add words from this line
         parsedWords.push(...wordsInLine);
         
-        // Add a newline marker if not the last line and the line has content
         if (lineIndex < lines.length - 1 && line.length > 0) {
           parsedWords.push("\n");
         }
       });
       
       setWords(parsedWords);
-      updateDisplayText(-1); // Reset highlighting
+      updateDisplayText(-1);
     } else {
       setWords([]);
       setDisplayText(null);
     }
   }, [text]);
 
-  // Update display text with highlighting whenever current word changes
   useEffect(() => {
     updateDisplayText(currentWordIndex);
   }, [currentWordIndex, words]);
 
-  // Add a small debounce for updating the display text to prevent flickering
   const updateDisplayText = (wordIndex: number) => {
     if (!words.length) {
       setDisplayText(null);
@@ -118,13 +129,11 @@ const TextReader = ({
     
     words.forEach((word, index) => {
       if (word === "\n") {
-        // When we hit a newline, add the current line content to our result
         currentContent.push(
           <div key={`line-${index}`} className="mb-2">
             {[...lineContent]}
           </div>
         );
-        // Reset line content for the next line
         lineContent = [];
       } else {
         const isHighlighted = index === wordIndex;
@@ -146,7 +155,6 @@ const TextReader = ({
       }
     });
     
-    // Add any remaining line content
     if (lineContent.length > 0) {
       currentContent.push(
         <div key="final-line" className="mb-2">
@@ -157,14 +165,12 @@ const TextReader = ({
 
     setDisplayText(<>{currentContent}</>);
     
-    // Scroll to highlighted word if available
     if (wordIndex >= 0 && textContainerRef.current) {
       const highlightedElement = textContainerRef.current.querySelector(`span:nth-child(${wordIndex + 1})`);
       if (highlightedElement) {
         const containerRect = textContainerRef.current.getBoundingClientRect();
         const elementRect = highlightedElement.getBoundingClientRect();
         
-        // Only scroll if element is not fully visible
         if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
           highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -172,7 +178,6 @@ const TextReader = ({
     }
   };
 
-  // Load and initialize voices when component mounts
   useEffect(() => {
     const loadVoices = () => {
       const synth = window.speechSynthesis;
@@ -184,18 +189,15 @@ const TextReader = ({
       }
     };
 
-    // Try to load voices immediately
     if ('speechSynthesis' in window) {
       loadVoices();
       
-      // Also set up event listener for when voices change/load
       window.speechSynthesis.onvoiceschanged = () => {
         loadVoices();
       };
     }
 
     return () => {
-      // Cleanup
       if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = null;
         if (isSpeaking) {
@@ -205,14 +207,13 @@ const TextReader = ({
     };
   }, []);
 
-  // Reset speech error indicator when text changes
   useEffect(() => {
     setShowSpeechError(false);
   }, [text]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
-    setCurrentWordIndex(-1); // Reset word index when text changes
+    setCurrentWordIndex(-1);
   };
 
   const handleReset = () => {
@@ -228,22 +229,18 @@ const TextReader = ({
     });
   };
 
-  // Find the best matching voice from available system voices
   const findMatchingVoice = (voiceId: string): SpeechSynthesisVoice | null => {
     if (!availableVoices.length) {
-      return null; // Use default voice
+      return null;
     }
 
-    // Define preferred voice names for our voice IDs
     const voicePreferences: Record<string, string[]> = {
       'male': ['daniel', 'david', 'male', 'man'],
       'female': ['emily', 'samantha', 'female', 'woman']
     };
 
-    // Try to find voice by preference
     const preferences = voicePreferences[voiceId] || [];
     
-    // First, try to match by exact name
     for (const pref of preferences) {
       const exactMatch = availableVoices.find(
         voice => voice.name.toLowerCase() === pref
@@ -251,7 +248,6 @@ const TextReader = ({
       if (exactMatch) return exactMatch;
     }
     
-    // Then try to find by partial match
     for (const pref of preferences) {
       const partialMatch = availableVoices.find(
         voice => voice.name.toLowerCase().includes(pref)
@@ -259,14 +255,13 @@ const TextReader = ({
       if (partialMatch) return partialMatch;
     }
 
-    // If all else fails, try to match by gender
     const isFemalePref = voiceId === 'female';
     const genderFallback = availableVoices.find(
       v => isFemalePref ? v.name.toLowerCase().includes('female') || !v.name.toLowerCase().includes('male') 
                         : v.name.toLowerCase().includes('male')
     );
     
-    return genderFallback || availableVoices[0]; // Last resort: return first available voice
+    return genderFallback || availableVoices[0];
   };
 
   const createUtterance = (startFrom: number = 0) => {
@@ -281,33 +276,25 @@ const TextReader = ({
       return null;
     }
 
-    // Determine text to speak based on position
     const textToSpeak = startFrom > 0 ? text.substring(startFrom) : text;
     
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.rate = speechRate;
     
-    // Set selected voice if available
     const voice = findMatchingVoice(selectedVoice);
     if (voice) {
       utterance.voice = voice;
     }
     
-    // Use a more resilient approach to word boundary detection
     let wordCount = 0;
     
     utterance.onboundary = (event) => {
       if (event.name === 'word') {
-        // Calculate the word index based on character position
-        // Use a timeout to smooth the visual transition
         setTimeout(() => {
-          // Get the text up to this position
           const textUpToPosition = text.substring(0, startFrom + event.charIndex);
-          // Count words by splitting on whitespace
           const wordsBefore = textUpToPosition.split(/\s+/).filter(w => w.length > 0).length;
-          // Set the current word index
           setCurrentWordIndex(wordsBefore);
-        }, 50); // Small delay to smooth transitions
+        }, 50);
       }
     };
     
@@ -316,7 +303,7 @@ const TextReader = ({
       setIsPaused(false);
       setIsVoiceChanging(false);
       setCurrentTextPosition(0);
-      setCurrentWordIndex(-1); // Reset highlighting when done speaking
+      setCurrentWordIndex(-1);
       utteranceRef.current = null;
     };
     
@@ -326,10 +313,9 @@ const TextReader = ({
       setIsPaused(false);
       setIsVoiceChanging(false);
       setShowSpeechError(true);
-      setCurrentWordIndex(-1); // Reset highlighting on error
+      setCurrentWordIndex(-1);
       utteranceRef.current = null;
       
-      // Don't show toast if we already have visual error indicator
       if (!showSpeechError) {
         toast({
           title: "Speech Error",
@@ -339,7 +325,6 @@ const TextReader = ({
       }
     };
     
-    // Set starting position for playback tracking
     setCurrentTextPosition(startFrom);
     
     return utterance;
@@ -347,7 +332,6 @@ const TextReader = ({
 
   const startSpeech = (fromPosition: number = 0) => {
     if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech first
       window.speechSynthesis.cancel();
       
       const utterance = createUtterance(fromPosition);
@@ -358,7 +342,6 @@ const TextReader = ({
       setIsSpeaking(true);
       setIsPaused(false);
       
-      // Reset word index when starting from beginning
       if (fromPosition === 0) {
         setCurrentWordIndex(-1);
       }
@@ -377,17 +360,15 @@ const TextReader = ({
       setIsSpeaking(false);
       setIsPaused(false);
       setIsVoiceChanging(false);
-      setCurrentWordIndex(-1); // Reset highlighting when stopping speech
+      setCurrentWordIndex(-1);
       utteranceRef.current = null;
     }
   };
 
   const pauseSpeech = () => {
     if ('speechSynthesis' in window && isSpeaking) {
-      // Estimate current position in text
-      // This is an approximation - precise tracking would require more complex implementation
       const timeSinceStart = Date.now() - (window as any).speechStartTime;
-      const charPerMs = 0.025; // Rough estimate of speech rate chars per ms
+      const charPerMs = 0.025;
       const charsSpoken = Math.min(
         Math.floor(timeSinceStart * charPerMs * speechRate),
         text.length - currentTextPosition
@@ -409,15 +390,13 @@ const TextReader = ({
 
   const skipForward = () => {
     if (isSpeaking) {
-      // Calculate new position (approximately 10 seconds forward)
-      const charsPerSecond = 15 * speechRate; // Rough estimate: ~15 chars per second
+      const charsPerSecond = 15 * speechRate;
       const skipChars = Math.floor(charsPerSecond * 10);
       const newPosition = Math.min(
         currentTextPosition + skipChars, 
         text.length - 1
       );
       
-      // Restart from new position
       stopSpeech();
       startSpeech(newPosition);
       
@@ -430,12 +409,10 @@ const TextReader = ({
 
   const skipBackward = () => {
     if (isSpeaking) {
-      // Calculate new position (approximately 10 seconds backward)
-      const charsPerSecond = 15 * speechRate; // Rough estimate: ~15 chars per second
+      const charsPerSecond = 15 * speechRate;
       const skipChars = Math.floor(charsPerSecond * 10);
       const newPosition = Math.max(currentTextPosition - skipChars, 0);
       
-      // Restart from new position
       stopSpeech();
       startSpeech(newPosition);
       
@@ -448,14 +425,11 @@ const TextReader = ({
 
   const togglePlayPause = () => {
     if (!isSpeaking) {
-      // Start speech from beginning or saved position
       startSpeech(currentTextPosition);
       (window as any).speechStartTime = Date.now();
     } else if (isPaused) {
-      // Resume if paused
       resumeSpeech();
     } else {
-      // Pause if speaking
       pauseSpeech();
     }
   };
@@ -463,7 +437,6 @@ const TextReader = ({
   const handleRateChange = (value: number[]) => {
     setSpeechRate(value[0]);
     
-    // If already speaking, restart with new rate
     if (isSpeaking) {
       const currentPos = currentTextPosition;
       stopSpeech();
@@ -475,16 +448,13 @@ const TextReader = ({
     setSelectedVoice(value);
     setIsVoiceChanging(true);
     
-    // If already speaking, restart with new voice
     if (isSpeaking) {
       const currentPos = currentTextPosition;
       stopSpeech();
-      // Small delay to ensure speech is fully stopped
       setTimeout(() => {
         startSpeech(currentPos);
       }, 50);
     } else {
-      // Even if not speaking, we'll reset the changing state after a moment
       setTimeout(() => {
         setIsVoiceChanging(false);
       }, 100);
@@ -496,7 +466,6 @@ const TextReader = ({
     });
   };
 
-  // Format speed display value
   const formatSpeedLabel = (speed: number) => {
     return `${speed}x`;
   };
@@ -536,7 +505,7 @@ const TextReader = ({
           <Textarea
             value={text}
             onChange={handleTextChange}
-            placeholder="Enter or paste text here to read with your preferred settings..."
+            placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
             className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y"
             style={{
               fontFamily,
