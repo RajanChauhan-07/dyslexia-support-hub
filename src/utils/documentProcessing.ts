@@ -1,10 +1,10 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
 // Initialize PDF.js worker
-// Using a direct import approach instead of URL constructor which is failing
-const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// The error is because we're trying to set workerSrc to the imported module instead of a string path
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsLib.PDFWorker ? pdfjsLib.PDFWorker.workerSrc : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.1.91/build/pdf.worker.min.js';
 
 /**
  * Extracts text from a PDF file

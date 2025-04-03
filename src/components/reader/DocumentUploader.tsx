@@ -49,9 +49,10 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       let extractedText;
       try {
         extractedText = await processDocument(file);
-      } catch (processingError) {
+        console.log("Text extraction successful:", extractedText.length > 100 ? extractedText.substring(0, 100) + "..." : extractedText);
+      } catch (processingError: any) {
         console.error('Document processing error:', processingError);
-        throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}. Please try another file.`);
+        throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}: ${processingError.message || 'Unknown error'}`);
       }
       
       if (!extractedText || extractedText.trim() === '') {
