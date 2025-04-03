@@ -30,13 +30,15 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     setIsUploading(true);
     
     try {
-      // Check file type
+      // Check file type with improved logging
       if (!file.type.includes('pdf') && 
           !file.type.includes('word') && 
           !file.type.includes('document') &&
           !file.type.includes('text/plain')) {
         throw new Error('Please upload a PDF, Word document, or text file.');
       }
+      
+      console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       
       // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {

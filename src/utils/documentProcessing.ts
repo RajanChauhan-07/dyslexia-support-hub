@@ -2,8 +2,12 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+// Initialize PDF.js worker with a more reliable approach
+// Instead of using unpkg CDN which is failing, we'll use a bundled approach
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.js',
+  import.meta.url
+).toString();
 
 /**
  * Extracts text from a PDF file
@@ -14,8 +18,8 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // Read the file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
-    // Load the PDF document
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    // Load the PDF document using a more reliable approach
+    const loadingTask = pdfjsLib.getDocument(arrayBuffer);
     console.log('PDF loading task created');
     
     const pdf = await loadingTask.promise;
