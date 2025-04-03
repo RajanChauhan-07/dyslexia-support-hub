@@ -3,8 +3,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
 // Initialize PDF.js worker
-// The error is because we're trying to set workerSrc to the imported module instead of a string path
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsLib.PDFWorker ? pdfjsLib.PDFWorker.workerSrc : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.1.91/build/pdf.worker.min.js';
+// We need to set the worker source to a CDN URL that serves the PDF.js worker script
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.1.91/build/pdf.worker.min.js';
 
 /**
  * Extracts text from a PDF file
