@@ -45,8 +45,14 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
         throw new Error('File is too large. Maximum size is 10MB.');
       }
       
-      // Process document
-      const extractedText = await processDocument(file);
+      // Process document with enhanced error handling
+      let extractedText;
+      try {
+        extractedText = await processDocument(file);
+      } catch (processingError) {
+        console.error('Document processing error:', processingError);
+        throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}. Please try another file.`);
+      }
       
       if (!extractedText || extractedText.trim() === '') {
         throw new Error('No text could be extracted from this document.');
