@@ -3,23 +3,29 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
 // Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 /**
  * Extracts text from a PDF file
  */
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
+    console.log('Starting PDF extraction');
     // Read the file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
     // Load the PDF document
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    console.log('PDF loading task created');
+    
+    const pdf = await loadingTask.promise;
+    console.log(`PDF loaded with ${pdf.numPages} pages`);
     
     let fullText = '';
     
     // Extract text from each page
     for (let i = 1; i <= pdf.numPages; i++) {
+      console.log(`Processing page ${i}`);
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       const pageText = content.items
@@ -29,6 +35,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       fullText += pageText + '\n\n';
     }
     
+    console.log('PDF extraction completed');
     return fullText.trim();
   } catch (error) {
     console.error('Error extracting PDF text:', error);
@@ -41,12 +48,14 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
  */
 export const extractTextFromWord = async (file: File): Promise<string> => {
   try {
+    console.log('Starting Word document extraction');
     // Read the file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
     // Extract text from the Word document
     const result = await mammoth.extractRawText({ arrayBuffer });
     
+    console.log('Word extraction completed');
     return result.value.trim();
   } catch (error) {
     console.error('Error extracting Word text:', error);
@@ -59,6 +68,7 @@ export const extractTextFromWord = async (file: File): Promise<string> => {
  */
 export const processDocument = async (file: File): Promise<string> => {
   const fileType = file.type;
+  console.log('Processing document of type:', fileType);
   
   try {
     // Handle PDF files

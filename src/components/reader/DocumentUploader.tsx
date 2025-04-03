@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2 } from 'lucide-react';
 import { 
@@ -20,6 +20,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -68,7 +69,15 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     } finally {
       setIsUploading(false);
       // Reset file input
-      e.target.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDropZoneClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -92,7 +101,10 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
-            <div className="flex flex-col items-center justify-center gap-4 p-6 border-2 border-dashed rounded-lg">
+            <div 
+              onClick={handleDropZoneClick}
+              className="flex flex-col items-center justify-center gap-4 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+            >
               <FileText className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground text-center">
                 Drag and drop your document here or click to browse.
@@ -100,32 +112,35 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
                 Supports PDF, Word, and text files (max 10MB).
               </p>
               
-              <label className="w-full">
-                <Button 
-                  variant="default" 
-                  className="w-full"
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Select File
-                    </>
-                  )}
-                </Button>
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" 
-                  onChange={handleFileChange}
-                  disabled={isUploading}
-                />
-              </label>
+              <Button 
+                variant="default" 
+                className="w-full"
+                disabled={isUploading}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDropZoneClick();
+                }}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Select File
+                  </>
+                )}
+              </Button>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                className="hidden" 
+                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" 
+                onChange={handleFileChange}
+                disabled={isUploading}
+              />
             </div>
           </div>
         </DialogContent>
