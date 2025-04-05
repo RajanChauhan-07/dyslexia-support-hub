@@ -1,6 +1,9 @@
 
+import { useEffect, useState } from "react";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 interface ReadingActivity {
   date: string;
@@ -13,9 +16,93 @@ interface ReadingActivityChartProps {
 }
 
 const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) => {
+  const { user } = useAuth();
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch reading activity data from Supabase
+  useEffect(() => {
+    if (!user) {
+      setChartData(getFormattedData([]));
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchReadingActivity = async () => {
+      setIsLoading(true);
+      try {
+        // Get date range based on period
+        const now = new Date();
+        let startDate = new Date();
+        
+        switch (period) {
+          case "daily":
+            startDate.setHours(0, 0, 0, 0);
+            break;
+          case "weekly":
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case "monthly":
+            startDate.setMonth(now.getMonth() - 1);
+            break;
+          case "yearly":
+            startDate.setFullYear(now.getFullYear() - 1);
+            break;
+        }
+
+        const { data: activityData, error } = await supabase
+          .from('reading_activity')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('read_at', startDate.toISOString())
+          .order('read_at', { ascending: true });
+
+        if (error) {
+          console.error('Error fetching reading activity:', error);
+          setChartData(getFormattedData([]));
+        } else {
+          const formattedActivity = activityData.map(item => ({
+            date: item.read_at,
+            wordsRead: item.words_read
+          }));
+          
+          setChartData(getFormattedData(formattedActivity));
+        }
+      } catch (error) {
+        console.error('Error in activity fetch:', error);
+        setChartData(getFormattedData([]));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReadingActivity();
+
+    // Set up realtime subscription for activity updates
+    const channel = supabase
+      .channel('reading_activity_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'reading_activity',
+          filter: `user_id=eq.${user.id}`
+        }, 
+        (_payload) => {
+          // Refresh data when activity changes
+          fetchReadingActivity();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, period]);
+
   // Format chart data based on the time period
-  const getFormattedData = () => {
-    if (!data || data.length === 0) {
+  const getFormattedData = (activityData: ReadingActivity[]) => {
+    if (!activityData || activityData.length === 0) {
       // Return sample empty data with appropriate time labels
       switch (period) {
         case "daily":
@@ -48,7 +135,7 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
     const dateMap = new Map();
 
     // Group data by date parts according to period
-    for (const item of data) {
+    for (const item of activityData) {
       const date = new Date(item.date);
       let key;
 
@@ -116,8 +203,6 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
 
     return result;
   };
-
-  const chartData = getFormattedData();
 
   const chartConfig = {
     words: {

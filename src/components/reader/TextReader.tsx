@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
 // Voice options - simplified to just two options
@@ -120,6 +121,23 @@ const TextReader = ({
       // Calculate average speed (words per minute)
       const wpm = readingTime > 0 ? Math.round((wordsRead / readingTime) * 60) : 0;
       
+      console.log(`Updating reading stats: ${wordsRead} words in ${readingTime} seconds (${wpm} wpm)`);
+      
+      // Record this reading activity
+      const { error: activityError } = await supabase
+        .from('reading_activity')
+        .insert({
+          user_id: user.id,
+          words_read: wordsRead,
+          reading_time: readingTime,
+          read_at: new Date().toISOString(),
+        });
+        
+      if (activityError) {
+        console.error('Error recording reading activity:', activityError);
+        return;
+      }
+      
       // First try to get existing stats
       const { data: existingStats, error: fetchError } = await supabase
         .from('reading_stats')
@@ -132,34 +150,58 @@ const TextReader = ({
         return;
       }
       
-      // Record this reading activity
-      await supabase
-        .from('reading_activity')
-        .insert({
-          user_id: user.id,
-          words_read: wordsRead,
-          reading_time: readingTime,
-          read_at: new Date().toISOString(),
-        });
-      
       if (existingStats) {
         // Update existing stats
         const totalWords = existingStats.words_read + wordsRead;
         const totalTime = existingStats.total_reading_time + readingTime;
         const avgSpeed = totalTime > 0 ? Math.round((totalWords / totalTime) * 60) : 0;
         
-        await supabase
+        // Check if this is a continuation of the current streak
+        const lastReadDate = new Date(existingStats.last_read_at);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        // Consider it a streak if last read was today or yesterday
+        const isToday = lastReadDate.toDateString() === today.toDateString();
+        const isYesterday = lastReadDate.toDateString() === yesterday.toDateString();
+        
+        let currentStreak = existingStats.current_streak;
+        let longestStreak = existingStats.longest_streak;
+        
+        if (!isToday) {
+          if (isYesterday) {
+            // Continue streak
+            currentStreak += 1;
+            if (currentStreak > longestStreak) {
+              longestStreak = currentStreak;
+            }
+          } else {
+            // Reset streak
+            currentStreak = 1;
+          }
+        }
+        
+        const { error: updateError } = await supabase
           .from('reading_stats')
           .update({
             words_read: totalWords,
             total_reading_time: totalTime,
             average_speed: avgSpeed,
+            current_streak: currentStreak,
+            longest_streak: longestStreak,
             last_read_at: new Date().toISOString(),
           })
           .eq('user_id', user.id);
+          
+        if (updateError) {
+          console.error('Error updating reading stats:', updateError);
+        } else {
+          console.log('Reading stats updated successfully');
+        }
       } else {
         // Create new stats record
-        await supabase
+        const { error: insertError } = await supabase
           .from('reading_stats')
           .insert({
             user_id: user.id,
@@ -172,9 +214,13 @@ const TextReader = ({
             longest_streak: 1,
             last_read_at: new Date().toISOString(),
           });
+          
+        if (insertError) {
+          console.error('Error inserting new reading stats:', insertError);
+        } else {
+          console.log('New reading stats created successfully');
+        }
       }
-      
-      console.log('Reading stats updated:', { wordsRead, readingTime, wpm });
     } catch (error) {
       console.error('Error updating reading stats:', error);
     }
@@ -391,8 +437,6 @@ const TextReader = ({
     if (voice) {
       utterance.voice = voice;
     }
-    
-    let wordCount = 0;
     
     utterance.onboundary = (event) => {
       if (event.name === 'word') {

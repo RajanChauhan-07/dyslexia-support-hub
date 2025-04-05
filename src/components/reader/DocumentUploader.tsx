@@ -1,5 +1,4 @@
-
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2 } from 'lucide-react';
 import { 
@@ -21,6 +20,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -29,8 +29,25 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     const file = files[0];
     setIsUploading(true);
     
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
+    
+    processingTimeoutRef.current = setTimeout(() => {
+      if (isUploading) {
+        setIsUploading(false);
+        toast({
+          title: "Processing Timeout",
+          description: "Document processing took too long. Please try a smaller or different file.",
+          variant: "destructive"
+        });
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    }, 30000);
+    
     try {
-      // Check file type with improved logging
       if (!file.type.includes('pdf') && 
           !file.type.includes('word') && 
           !file.type.includes('document') &&
@@ -40,33 +57,50 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       
       console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       
-      // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         throw new Error('File is too large. Maximum size is 10MB.');
       }
       
-      // Process document with enhanced error handling
+      if (file.type.includes('pdf')) {
+        toast({
+          title: "Processing PDF",
+          description: "PDF extraction may take a moment for larger documents...",
+        });
+      }
+      
       let extractedText;
       try {
         extractedText = await processDocument(file);
         console.log("Text extraction successful:", extractedText.length > 100 ? extractedText.substring(0, 100) + "..." : extractedText);
       } catch (processingError: any) {
         console.error('Document processing error:', processingError);
-        throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}: ${processingError.message || 'Unknown error'}`);
+        
+        if (file.type.includes('pdf')) {
+          throw new Error(`PDF processing failed. This may be due to encryption, complex formatting, or scanned content. Try a different PDF or manually copy the text.`);
+        } else {
+          throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}: ${processingError.message || 'Unknown error'}`);
+        }
       }
       
       if (!extractedText || extractedText.trim() === '') {
-        throw new Error('No text could be extracted from this document.');
+        if (file.type.includes('pdf')) {
+          throw new Error('No text could be extracted from this PDF. It may contain only images or be scanned without OCR.');
+        } else {
+          throw new Error('No text could be extracted from this document.');
+        }
       }
       
-      // Pass extracted text to parent component
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+      
       onTextExtracted(extractedText);
       
-      // Close dialog and show success toast
       setIsDialogOpen(false);
       toast({
         title: "Document Processed",
-        description: `Successfully extracted text from "${file.name}"`,
+        description: `Successfully extracted ${extractedText.split(/\s+/).length} words from "${file.name}"`,
       });
     } catch (error: any) {
       console.error('Error processing document:', error);
@@ -76,8 +110,12 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
         variant: "destructive"
       });
     } finally {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+      
       setIsUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -89,6 +127,14 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       fileInputRef.current.click();
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <>
