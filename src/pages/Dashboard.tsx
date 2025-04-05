@@ -270,7 +270,7 @@ const Dashboard = () => {
                     <div 
                       key={i} 
                       className={`aspect-square rounded-sm ${getBgClass()} flex items-center justify-center text-xs`}
-                      title={`Day ${i+1}: ${activityLevel ? `${activityLevel * 1000} words` : 'No activity'}`}
+                      title={`Day ${i+1}: ${activityLevel > 0 ? `${activityLevel * 1000} words` : 'No activity'}`}
                     >
                       {i + 1}
                     </div>
