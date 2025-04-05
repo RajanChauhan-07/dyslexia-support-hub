@@ -11,6 +11,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton'; // Added missing import
 import ReadingActivityChart from '@/components/dashboard/ReadingActivityChart';
 import ReadingStatCard from '@/components/dashboard/ReadingStatCard';
 import { useAuth } from '@/context/AuthContext';
