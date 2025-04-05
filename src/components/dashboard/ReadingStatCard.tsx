@@ -9,6 +9,8 @@ interface ReadingStatCardProps {
   description: string;
   icon: ReactNode;
   isLoading?: boolean;
+  isEmpty?: boolean;
+  emptyText?: string;
 }
 
 const ReadingStatCard = ({
@@ -17,6 +19,8 @@ const ReadingStatCard = ({
   description,
   icon,
   isLoading = false,
+  isEmpty = false,
+  emptyText = "No data yet",
 }: ReadingStatCardProps) => {
   return (
     <Card>
@@ -26,6 +30,8 @@ const ReadingStatCard = ({
             <span className="text-sm font-medium text-muted-foreground">{title}</span>
             {isLoading ? (
               <Skeleton className="h-7 w-20" />
+            ) : isEmpty ? (
+              <span className="text-lg text-muted-foreground">{emptyText}</span>
             ) : (
               <span className="text-2xl font-bold">{value}</span>
             )}

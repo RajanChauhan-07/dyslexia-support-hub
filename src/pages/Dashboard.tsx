@@ -16,8 +16,7 @@ import ReadingStatCard from '@/components/dashboard/ReadingStatCard';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 
-// Mock data for dashboard stats
-// In a real app, this would come from your database
+// Define the reading stats interface
 interface ReadingStats {
   wordsRead: number;
   averageSpeed: number;
@@ -40,32 +39,45 @@ const Dashboard = () => {
     totalReadingTime: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [hasData, setHasData] = useState(false);
 
   useEffect(() => {
     const fetchUserStats = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
       
       try {
         setIsLoading(true);
         
         // In a real implementation, this would fetch from Supabase
-        // For now, we'll use mock data to demonstrate the UI
-        
-        // Simulate a network request
+        // For now, we'll simulate a network request but return zeros for new users
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Mock data - in a real app this would be fetched from the database
-        const mockStats: ReadingStats = {
-          wordsRead: 147582,
-          averageSpeed: 220,
-          documentsUploaded: 12,
-          documentsFinished: 9,
-          currentStreak: 4,
-          longestStreak: 7,
-          totalReadingTime: 670
-        };
+        // Check if user has any reading data recorded
+        // This is mocked for now - in a real implementation this would check the database
+        const userHasData = false; // Set to false for new users
         
-        setStats(mockStats);
+        if (userHasData) {
+          // In a real app, fetch actual data from Supabase
+          // For demonstration, we'll use very small numbers instead of random large ones
+          const userStats: ReadingStats = {
+            wordsRead: 0,
+            averageSpeed: 0,
+            documentsUploaded: 0,
+            documentsFinished: 0,
+            currentStreak: 0, 
+            longestStreak: 0,
+            totalReadingTime: 0
+          };
+          
+          setStats(userStats);
+          setHasData(true);
+        } else {
+          // Set default stats for new users (all zeros)
+          setHasData(false);
+        }
       } catch (error) {
         console.error('Error fetching user stats:', error);
       } finally {
@@ -104,6 +116,7 @@ const Dashboard = () => {
           description="Total words processed"
           icon={<BookOpenText className="h-5 w-5 text-primary" />}
           isLoading={isLoading}
+          isEmpty={!hasData && !isLoading}
         />
         
         <ReadingStatCard 
@@ -112,6 +125,7 @@ const Dashboard = () => {
           description="Average words per minute" 
           icon={<Clock className="h-5 w-5 text-primary" />}
           isLoading={isLoading}
+          isEmpty={!hasData && !isLoading}
         />
         
         <ReadingStatCard 
@@ -120,6 +134,7 @@ const Dashboard = () => {
           description="Finished / Uploaded"
           icon={<FileText className="h-5 w-5 text-primary" />}
           isLoading={isLoading}
+          isEmpty={!hasData && !isLoading}
         />
         
         <ReadingStatCard 
@@ -128,6 +143,7 @@ const Dashboard = () => {
           description={`Longest: ${stats.longestStreak} days`}
           icon={<Trophy className="h-5 w-5 text-primary" />}
           isLoading={isLoading}
+          isEmpty={!hasData && !isLoading}
         />
       </div>
 
@@ -185,24 +201,35 @@ const Dashboard = () => {
             <CardDescription>Your reading activity breakdown</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Best reading day</span>
-                <span className="font-medium">Wednesday</span>
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Most productive time</span>
-                <span className="font-medium">8:00 PM - 10:00 PM</span>
+            ) : !hasData ? (
+              <p className="text-muted-foreground py-4">No reading patterns data available yet. Start reading to see your patterns!</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Best reading day</span>
+                  <span className="font-medium">Wednesday</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Most productive time</span>
+                  <span className="font-medium">8:00 PM - 10:00 PM</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Longest reading session</span>
+                  <span className="font-medium">0 minutes</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total reading time</span>
+                  <span className="font-medium">{Math.floor(stats.totalReadingTime/60)} hrs {stats.totalReadingTime % 60} mins</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Longest reading session</span>
-                <span className="font-medium">72 minutes</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total reading time</span>
-                <span className="font-medium">{Math.floor(stats.totalReadingTime/60)} hrs {stats.totalReadingTime % 60} mins</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -215,31 +242,41 @@ const Dashboard = () => {
             <CardDescription>Your active reading days</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: 31 }).map((_, i) => {
-                // Random activity level for demo purposes
-                const activityLevel = Math.floor(Math.random() * 4);
-                const getBgClass = () => {
-                  switch(activityLevel) {
-                    case 0: return "bg-gray-100 dark:bg-gray-800";
-                    case 1: return "bg-green-100 dark:bg-green-900/30";
-                    case 2: return "bg-green-200 dark:bg-green-800/40";
-                    case 3: return "bg-green-300 dark:bg-green-700/50";
-                    default: return "bg-gray-100 dark:bg-gray-800";
-                  }
-                };
-                
-                return (
-                  <div 
-                    key={i} 
-                    className={`aspect-square rounded-sm ${getBgClass()} flex items-center justify-center text-xs`}
-                    title={`Day ${i+1}: ${activityLevel ? `${activityLevel * 1000} words` : 'No activity'}`}
-                  >
-                    {i + 1}
-                  </div>
-                );
-              })}
-            </div>
+            {isLoading ? (
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: 31 }).map((_, i) => (
+                  <Skeleton key={i} className="aspect-square" />
+                ))}
+              </div>
+            ) : !hasData ? (
+              <p className="text-muted-foreground py-4">No calendar data available yet. Your reading activity will appear here once you start reading.</p>
+            ) : (
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: 31 }).map((_, i) => {
+                  // For new users, use no activity level
+                  const activityLevel = 0;
+                  const getBgClass = () => {
+                    switch(activityLevel) {
+                      case 0: return "bg-gray-100 dark:bg-gray-800";
+                      case 1: return "bg-green-100 dark:bg-green-900/30";
+                      case 2: return "bg-green-200 dark:bg-green-800/40";
+                      case 3: return "bg-green-300 dark:bg-green-700/50";
+                      default: return "bg-gray-100 dark:bg-gray-800";
+                    }
+                  };
+                  
+                  return (
+                    <div 
+                      key={i} 
+                      className={`aspect-square rounded-sm ${getBgClass()} flex items-center justify-center text-xs`}
+                      title={`Day ${i+1}: ${activityLevel ? `${activityLevel * 1000} words` : 'No activity'}`}
+                    >
+                      {i + 1}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
