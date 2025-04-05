@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2 } from 'lucide-react';
@@ -18,6 +19,7 @@ interface DocumentUploaderProps {
 const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -28,10 +30,14 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     
     const file = files[0];
     setIsUploading(true);
+    setProcessingProgress(10); // Initial progress indicator
     
     if (processingTimeoutRef.current) {
       clearTimeout(processingTimeoutRef.current);
     }
+    
+    // Set a longer timeout for larger files
+    const timeoutDuration = file.size > 5 * 1024 * 1024 ? 60000 : 30000; // 60s for files > 5MB
     
     processingTimeoutRef.current = setTimeout(() => {
       if (isUploading) {
@@ -45,7 +51,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
           fileInputRef.current.value = '';
         }
       }
-    }, 30000);
+    }, timeoutDuration);
     
     try {
       if (!file.type.includes('pdf') && 
@@ -57,22 +63,42 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       
       console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       
-      if (file.size > 10 * 1024 * 1024) {
-        throw new Error('File is too large. Maximum size is 10MB.');
+      const maxSizeMB = 15; // Increased to 15MB
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        throw new Error(`File is too large. Maximum size is ${maxSizeMB}MB.`);
       }
       
       if (file.type.includes('pdf')) {
-        toast({
-          title: "Processing PDF",
-          description: "PDF extraction may take a moment for larger documents...",
-        });
+        // Show more detailed message for large PDFs
+        if (file.size > 5 * 1024 * 1024) {
+          toast({
+            title: "Processing Large PDF",
+            description: "Large PDFs may take longer to process and might be partially extracted. Please be patient...",
+          });
+        } else {
+          toast({
+            title: "Processing PDF",
+            description: "PDF extraction may take a moment...",
+          });
+        }
       }
+      
+      // Update progress periodically to show the user something is happening
+      const progressInterval = setInterval(() => {
+        setProcessingProgress(prev => {
+          // Increase progress gradually, max out at 90% (save 100% for completion)
+          return Math.min(90, prev + 5);
+        });
+      }, 1000);
       
       let extractedText;
       try {
         extractedText = await processDocument(file);
+        clearInterval(progressInterval);
+        setProcessingProgress(100);
         console.log("Text extraction successful:", extractedText.length > 100 ? extractedText.substring(0, 100) + "..." : extractedText);
       } catch (processingError: any) {
+        clearInterval(progressInterval);
         console.error('Document processing error:', processingError);
         
         if (file.type.includes('pdf')) {
@@ -98,9 +124,14 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       onTextExtracted(extractedText);
       
       setIsDialogOpen(false);
+      
+      // Show word count in success message
+      const wordCount = extractedText.split(/\s+/).length;
+      const pageEstimate = Math.ceil(wordCount / 250); // Rough estimate: ~250 words per page
+      
       toast({
         title: "Document Processed",
-        description: `Successfully extracted ${extractedText.split(/\s+/).length} words from "${file.name}"`,
+        description: `Successfully extracted ${wordCount.toLocaleString()} words (approximately ${pageEstimate} pages) from "${file.name}"`,
       });
     } catch (error: any) {
       console.error('Error processing document:', error);
@@ -116,6 +147,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       }
       
       setIsUploading(false);
+      setProcessingProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -152,6 +184,11 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
             <DialogTitle>Upload Document</DialogTitle>
             <DialogDescription>
               Upload a PDF, Word document, or text file to extract its content for reading.
+              <br />
+              <span className="text-xs text-muted-foreground mt-1 block">
+                Note: Large documents (200+ pages) may be partially processed. For best results with novels, 
+                try uploading 50-100 pages at a time.
+              </span>
             </DialogDescription>
           </DialogHeader>
           
@@ -164,30 +201,44 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
               <p className="text-sm text-muted-foreground text-center">
                 Drag and drop your document here or click to browse.
                 <br />
-                Supports PDF, Word, and text files (max 10MB).
+                Supports PDF, Word, and text files (max 15MB).
               </p>
               
-              <Button 
-                variant="default" 
-                className="w-full"
-                disabled={isUploading}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDropZoneClick();
-                }}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Select File
-                  </>
-                )}
-              </Button>
+              {isUploading && processingProgress > 0 ? (
+                <div className="w-full">
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-300 ease-in-out"
+                      style={{ width: `${processingProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-center mt-2 text-muted-foreground">
+                    Processing document ({processingProgress}%)...
+                  </p>
+                </div>
+              ) : (
+                <Button 
+                  variant="default" 
+                  className="w-full"
+                  disabled={isUploading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDropZoneClick();
+                  }}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Select File
+                    </>
+                  )}
+                </Button>
+              )}
               <input 
                 ref={fileInputRef}
                 type="file" 

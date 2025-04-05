@@ -6,7 +6,7 @@ import mammoth from 'mammoth';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 /**
- * Extracts text from a PDF file with improved error handling
+ * Extracts text from a PDF file with improved error handling and chunking for large documents
  */
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
@@ -28,12 +28,18 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     
     console.log(`PDF loaded with ${pdf.numPages} pages`);
     
+    // For very large PDFs, warn the user
+    if (pdf.numPages > 100) {
+      console.log(`Large PDF detected (${pdf.numPages} pages). Processing may take longer.`);
+    }
+    
     let fullText = '';
+    const maxProcessPages = Math.min(pdf.numPages, 300); // Limit to 300 pages max
     
     // Extract text from each page with better error handling
-    for (let i = 1; i <= pdf.numPages; i++) {
+    for (let i = 1; i <= maxProcessPages; i++) {
       try {
-        console.log(`Processing page ${i} of ${pdf.numPages}`);
+        console.log(`Processing page ${i} of ${maxProcessPages}`);
         const page = await pdf.getPage(i);
         
         // Try structured extraction first (works better for most PDFs)
@@ -68,9 +74,19 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         } else {
           fullText += pageText + '\n\n';
         }
+        
+        // Release page resources
+        page.cleanup();
       } catch (pageError) {
         console.error(`Error processing page ${i}:`, pageError);
         fullText += `[Error extracting text from page ${i}]\n\n`;
+      }
+      
+      // Every 10 pages, check if we've already got a reasonable amount of text
+      if (i % 10 === 0 && fullText.length > 50000) {
+        console.log(`Already extracted ${fullText.length} characters. Stopping early to prevent timeout.`);
+        fullText += `\n\n[Note: Document was partially processed. Only the first ${i} of ${pdf.numPages} pages were extracted due to size limitations.]\n`;
+        break;
       }
     }
     
@@ -79,6 +95,11 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // If we got very little text from the whole document, throw an error
     if (fullText.trim().length < 20) {
       throw new Error('Could not extract meaningful text from this PDF. It may be scanned or contain only images.');
+    }
+    
+    // If the PDF was larger than our max processed pages, add a note
+    if (pdf.numPages > maxProcessPages) {
+      fullText += `\n\n[Note: This document has been truncated. Only the first ${maxProcessPages} of ${pdf.numPages} pages were processed due to size limitations.]\n`;
     }
     
     return fullText.trim();
@@ -127,6 +148,40 @@ export const extractTextFromWord = async (file: File): Promise<string> => {
 };
 
 /**
+ * Process large texts by chunking them into manageable segments
+ */
+export const processLargeText = (text: string, maxChunkSize = 100000): string => {
+  if (text.length <= maxChunkSize) {
+    return text;
+  }
+  
+  console.log(`Text is very large (${text.length} characters). Truncating to prevent performance issues.`);
+  
+  // Try to find a good breaking point near maxChunkSize
+  let breakPoint = maxChunkSize;
+  
+  // Look for paragraph breaks
+  const paragraphBreak = text.lastIndexOf('\n\n', maxChunkSize);
+  if (paragraphBreak > maxChunkSize * 0.8) {
+    breakPoint = paragraphBreak;
+  } else {
+    // Look for sentence breaks
+    const sentenceBreak = Math.max(
+      text.lastIndexOf('. ', maxChunkSize),
+      text.lastIndexOf('? ', maxChunkSize),
+      text.lastIndexOf('! ', maxChunkSize)
+    );
+    
+    if (sentenceBreak > maxChunkSize * 0.8) {
+      breakPoint = sentenceBreak + 2; // Include the period and space
+    }
+  }
+  
+  const truncatedText = text.substring(0, breakPoint);
+  return truncatedText + '\n\n[Note: This document has been truncated due to its large size. Consider breaking it into smaller documents for better performance.]';
+};
+
+/**
  * Processes an uploaded file and extracts text based on file type with enhanced error handling
  */
 export const processDocument = async (file: File): Promise<string> => {
@@ -134,23 +189,34 @@ export const processDocument = async (file: File): Promise<string> => {
   console.log('Processing document of type:', fileType);
   
   try {
+    // Check file size
+    const maxSizeMB = 15;
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      throw new Error(`File is too large. Maximum size is ${maxSizeMB}MB.`);
+    }
+    
+    let extractedText = '';
+    
     // Handle PDF files
     if (fileType === 'application/pdf') {
-      return await extractTextFromPDF(file);
+      extractedText = await extractTextFromPDF(file);
     } 
     // Handle Word documents
     else if (
       fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
       fileType === 'application/msword'
     ) {
-      return await extractTextFromWord(file);
+      extractedText = await extractTextFromWord(file);
     } 
     // Handle text files
     else if (fileType === 'text/plain') {
-      return await file.text();
+      extractedText = await file.text();
+    } else {
+      throw new Error('Unsupported file type. Please upload a PDF, Word document, or text file.');
     }
     
-    throw new Error('Unsupported file type. Please upload a PDF, Word document, or text file.');
+    // Process very large texts to prevent performance issues
+    return processLargeText(extractedText);
   } catch (error) {
     console.error('Error processing document:', error);
     throw error;

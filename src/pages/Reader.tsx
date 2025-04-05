@@ -14,7 +14,8 @@ const Reader = () => {
   const [letterSpacing, setLetterSpacing] = useState<number>(0.5);
   const [textColor, setTextColor] = useState<string>('#0a0a0a');
   const [backgroundColor, setBackgroundColor] = useState<string>('#f8f5de');
-  const [text, setText] = useState<string>(''); // New state to handle extracted text
+  const [text, setText] = useState<string>(''); // Full extracted text
+  const [pageSize, setPageSize] = useState<number>(2000); // Characters per page
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -81,7 +82,8 @@ const Reader = () => {
                 letterSpacing={letterSpacing}
                 textColor={textColor}
                 backgroundColor={backgroundColor}
-                initialText={text} // Pass extracted text to TextReader
+                initialText={text}
+                pageSize={pageSize}
               />
             </div>
             
@@ -132,7 +134,8 @@ const Reader = () => {
                 letterSpacing={letterSpacing}
                 textColor={textColor}
                 backgroundColor={backgroundColor}
-                initialText={text} // Pass extracted text to TextReader
+                initialText={text}
+                pageSize={pageSize}
               />
             </div>
           </div>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,10 @@ import {
   SkipBack,
   AlertCircle,
   Plus,
-  Minus
+  Minus,
+  ChevronRight,
+  ChevronLeft,
+  Book
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -24,6 +28,15 @@ import {
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Voice options - simplified to just two options
 interface VoiceOption {
@@ -45,6 +58,7 @@ interface TextReaderProps {
   textColor: string;
   backgroundColor: string;
   initialText?: string;
+  pageSize?: number;
 }
 
 const TextReader = ({
@@ -55,8 +69,14 @@ const TextReader = ({
   textColor,
   backgroundColor,
   initialText = '',
+  pageSize = 2000,
 }: TextReaderProps) => {
-  const [text, setText] = useState<string>(initialText);
+  const [fullText, setFullText] = useState<string>(initialText);
+  const [displayText, setDisplayText] = useState<React.ReactNode>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [textPages, setTextPages] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState<boolean>(true);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
@@ -68,7 +88,6 @@ const TextReader = ({
   const [currentTextPosition, setCurrentTextPosition] = useState<number>(0);
   const [words, setWords] = useState<string[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
-  const [displayText, setDisplayText] = useState<React.ReactNode>(null);
   const [readingStartTime, setReadingStartTime] = useState<number | null>(null);
   const [totalWordsRead, setTotalWordsRead] = useState<number>(0);
   const [readingStats, setReadingStats] = useState({
@@ -79,7 +98,99 @@ const TextReader = ({
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
+
+  // Split text into pages when full text changes
+  useEffect(() => {
+    if (fullText) {
+      // Split the text into pages
+      const pages: string[] = [];
+      let remaining = fullText;
+      
+      while (remaining.length > 0) {
+        // Try to find a good breaking point near pageSize
+        let breakPoint = Math.min(pageSize, remaining.length);
+        
+        // If we're not at the end, try to break at a paragraph or sentence
+        if (breakPoint < remaining.length) {
+          // Look for paragraph breaks first (prefer breaking at paragraphs)
+          const paragraphBreak = remaining.lastIndexOf('\n\n', breakPoint);
+          if (paragraphBreak > pageSize * 0.7) { // At least 70% of desired page size
+            breakPoint = paragraphBreak + 2; // Include the newlines
+          } else {
+            // Try to break at a sentence (period, question mark, exclamation)
+            const sentenceBreak = Math.max(
+              remaining.lastIndexOf('. ', breakPoint),
+              remaining.lastIndexOf('? ', breakPoint),
+              remaining.lastIndexOf('! ', breakPoint)
+            );
+            
+            if (sentenceBreak > pageSize * 0.7) {
+              breakPoint = sentenceBreak + 2; // Include the period and space
+            } else {
+              // Last resort: break at a space
+              const spaceBreak = remaining.lastIndexOf(' ', breakPoint);
+              if (spaceBreak > pageSize * 0.8) {
+                breakPoint = spaceBreak + 1;
+              }
+              // If we couldn't find a good break, just use the pageSize
+            }
+          }
+        }
+        
+        pages.push(remaining.substring(0, breakPoint));
+        remaining = remaining.substring(breakPoint);
+      }
+      
+      setTextPages(pages);
+      setTotalPages(pages.length);
+      setCurrentPage(1); // Reset to first page when new text is loaded
+      
+      // Process the first page
+      if (pages.length > 0) {
+        processTextForPage(pages[0]);
+      } else {
+        setWords([]);
+        setCurrentWordIndex(-1);
+      }
+      
+      setEditMode(!pages.length); // Enter edit mode if no text
+    } else {
+      setTextPages([]);
+      setTotalPages(1);
+      setCurrentPage(1);
+      setWords([]);
+      setCurrentWordIndex(-1);
+      setEditMode(true);
+    }
+  }, [fullText, pageSize]);
+
+  // Update display text when page changes
+  useEffect(() => {
+    if (textPages.length > 0 && currentPage <= textPages.length) {
+      processTextForPage(textPages[currentPage - 1]);
+    }
+  }, [currentPage, textPages]);
+
+  // Process text for the current page
+  const processTextForPage = (pageText: string) => {
+    const lines = pageText.split(/\n/).map(line => line.trim());
+    const parsedWords: string[] = [];
+    
+    lines.forEach((line, lineIndex) => {
+      const wordsInLine = line.split(/\s+/).filter(word => word.length > 0);
+      
+      parsedWords.push(...wordsInLine);
+      
+      if (lineIndex < lines.length - 1 && line.length > 0) {
+        parsedWords.push("\n");
+      }
+    });
+    
+    setWords(parsedWords);
+    updateDisplayText(-1);
+  };
 
   // Track reading session
   useEffect(() => {
@@ -225,9 +336,10 @@ const TextReader = ({
     }
   };
 
+  // Update when initialText changes
   useEffect(() => {
     if (initialText) {
-      setText(initialText);
+      setFullText(initialText);
       
       if (isSpeaking) {
         stopSpeech();
@@ -247,29 +359,7 @@ const TextReader = ({
     }
   }, [initialText, user]);
 
-  useEffect(() => {
-    if (text) {
-      const lines = text.split(/\n/).map(line => line.trim());
-      const parsedWords: string[] = [];
-      
-      lines.forEach((line, lineIndex) => {
-        const wordsInLine = line.split(/\s+/).filter(word => word.length > 0);
-        
-        parsedWords.push(...wordsInLine);
-        
-        if (lineIndex < lines.length - 1 && line.length > 0) {
-          parsedWords.push("\n");
-        }
-      });
-      
-      setWords(parsedWords);
-      updateDisplayText(-1);
-    } else {
-      setWords([]);
-      setDisplayText(null);
-    }
-  }, [text]);
-
+  // Update display text when word index changes
   useEffect(() => {
     updateDisplayText(currentWordIndex);
   }, [currentWordIndex, words]);
@@ -334,6 +424,7 @@ const TextReader = ({
     }
   };
 
+  // Initialize speech synthesis
   useEffect(() => {
     const loadVoices = () => {
       const synth = window.speechSynthesis;
@@ -365,26 +456,86 @@ const TextReader = ({
 
   useEffect(() => {
     setShowSpeechError(false);
-  }, [text]);
+  }, [fullText]);
 
+  // Handle text edit
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    // When in edit mode, update the full text
+    if (editMode) {
+      setFullText(e.target.value);
+    } else {
+      // When not in edit mode (just viewing a page), update just the current page
+      const newPages = [...textPages];
+      newPages[currentPage - 1] = e.target.value;
+      setTextPages(newPages);
+      
+      // Update the full text by joining all pages
+      setFullText(newPages.join(''));
+    }
     setCurrentWordIndex(-1);
   };
 
+  // Reset text
   const handleReset = () => {
-    setText('');
+    setFullText('');
     if (isSpeaking) {
       stopSpeech();
     }
     setCurrentTextPosition(0);
     setCurrentWordIndex(-1);
+    setCurrentPage(1);
+    setTextPages([]);
+    setEditMode(true);
+    
     toast({
       title: "Text Reset",
       description: "The reader has been cleared.",
     });
   };
 
+  // Navigate to next page
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      if (isSpeaking) {
+        stopSpeech();
+      }
+      setCurrentPage(currentPage + 1);
+      setCurrentWordIndex(-1);
+      if (textContainerRef.current) {
+        textContainerRef.current.scrollTop = 0;
+      }
+    }
+  };
+
+  // Navigate to previous page
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      if (isSpeaking) {
+        stopSpeech();
+      }
+      setCurrentPage(currentPage - 1);
+      setCurrentWordIndex(-1);
+      if (textContainerRef.current) {
+        textContainerRef.current.scrollTop = 0;
+      }
+    }
+  };
+
+  // Go to specific page
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      if (isSpeaking) {
+        stopSpeech();
+      }
+      setCurrentPage(page);
+      setCurrentWordIndex(-1);
+      if (textContainerRef.current) {
+        textContainerRef.current.scrollTop = 0;
+      }
+    }
+  };
+
+  // Get voice for TTS
   const findMatchingVoice = (voiceId: string): SpeechSynthesisVoice | null => {
     if (!availableVoices.length) {
       return null;
@@ -420,10 +571,12 @@ const TextReader = ({
     return genderFallback || availableVoices[0];
   };
 
+  // Create speech utterance
   const createUtterance = (startFrom: number = 0) => {
     setShowSpeechError(false);
     
-    if (!text.trim()) {
+    const currentPageText = textPages[currentPage - 1];
+    if (!currentPageText || !currentPageText.trim()) {
       toast({
         title: "Nothing to read",
         description: "Please enter some text first.",
@@ -432,7 +585,7 @@ const TextReader = ({
       return null;
     }
 
-    const textToSpeak = startFrom > 0 ? text.substring(startFrom) : text;
+    const textToSpeak = startFrom > 0 ? currentPageText.substring(startFrom) : currentPageText;
     
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.rate = speechRate;
@@ -445,7 +598,7 @@ const TextReader = ({
     utterance.onboundary = (event) => {
       if (event.name === 'word') {
         setTimeout(() => {
-          const textUpToPosition = text.substring(0, startFrom + event.charIndex);
+          const textUpToPosition = currentPageText.substring(0, startFrom + event.charIndex);
           const wordsBefore = textUpToPosition.split(/\s+/).filter(w => w.length > 0).length;
           setCurrentWordIndex(wordsBefore);
         }, 50);
@@ -459,6 +612,17 @@ const TextReader = ({
       setCurrentTextPosition(0);
       setCurrentWordIndex(-1);
       utteranceRef.current = null;
+      
+      // Optionally auto-advance to next page
+      /*
+      if (currentPage < totalPages) {
+        toast({
+          title: "Page Complete",
+          description: "Moving to next page...",
+        });
+        setTimeout(() => handleNextPage(), 1500);
+      }
+      */
     };
     
     utterance.onerror = (event) => {
@@ -484,6 +648,7 @@ const TextReader = ({
     return utterance;
   };
 
+  // Start text-to-speech
   const startSpeech = (fromPosition: number = 0) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -508,6 +673,7 @@ const TextReader = ({
     }
   };
 
+  // Stop speech
   const stopSpeech = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -519,13 +685,14 @@ const TextReader = ({
     }
   };
 
+  // Pause speech
   const pauseSpeech = () => {
     if ('speechSynthesis' in window && isSpeaking) {
       const timeSinceStart = Date.now() - (window as any).speechStartTime;
       const charPerMs = 0.025;
       const charsSpoken = Math.min(
         Math.floor(timeSinceStart * charPerMs * speechRate),
-        text.length - currentTextPosition
+        textPages[currentPage - 1].length - currentTextPosition
       );
       const estimatedPosition = currentTextPosition + charsSpoken;
       
@@ -535,6 +702,7 @@ const TextReader = ({
     }
   };
 
+  // Resume speech
   const resumeSpeech = () => {
     if ('speechSynthesis' in window && isSpeaking && isPaused) {
       window.speechSynthesis.resume();
@@ -542,13 +710,14 @@ const TextReader = ({
     }
   };
 
+  // Skip forward
   const skipForward = () => {
     if (isSpeaking) {
       const charsPerSecond = 15 * speechRate;
       const skipChars = Math.floor(charsPerSecond * 10);
       const newPosition = Math.min(
         currentTextPosition + skipChars, 
-        text.length - 1
+        textPages[currentPage - 1].length - 1
       );
       
       stopSpeech();
@@ -561,6 +730,7 @@ const TextReader = ({
     }
   };
 
+  // Skip backward
   const skipBackward = () => {
     if (isSpeaking) {
       const charsPerSecond = 15 * speechRate;
@@ -577,6 +747,7 @@ const TextReader = ({
     }
   };
 
+  // Toggle play/pause
   const togglePlayPause = () => {
     if (!isSpeaking) {
       startSpeech(currentTextPosition);
@@ -588,7 +759,7 @@ const TextReader = ({
     }
   };
 
-  // Modify the speech rate functions to use increment/decrement buttons
+  // Modify the speech rate
   const incrementRate = () => {
     const newRate = Math.min(2, speechRate + 0.25);
     setSpeechRate(newRate);
@@ -625,6 +796,7 @@ const TextReader = ({
     });
   };
 
+  // Change voice
   const handleVoiceChange = (value: string) => {
     setSelectedVoice(value);
     setIsVoiceChanging(true);
@@ -647,10 +819,30 @@ const TextReader = ({
     });
   };
 
+  // Format speed label
   const formatSpeedLabel = (speed: number) => {
     return `${speed}x`;
   };
 
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    // If switching to edit mode, combine all pages
+    if (!editMode) {
+      // Already in view mode, switching to edit mode
+      setEditMode(true);
+      // Focus the textarea after switching to edit mode
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
+    } else {
+      // In edit mode, switching to view mode
+      setEditMode(false);
+    }
+  };
+
+  // Update document upload count
   const incrementDocumentsUploaded = async () => {
     if (!user) return;
     
@@ -695,8 +887,48 @@ const TextReader = ({
     }
   };
 
+  // Generate pagination numbers
+  const getPaginationItems = () => {
+    const items: number[] = [];
+    const maxVisible = 7; // Max number of page buttons to show
+    
+    if (totalPages <= maxVisible) {
+      // Show all pages if there aren't too many
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      // Always show first page
+      items.push(1);
+      
+      // Calculate range around current page
+      const leftSide = Math.max(2, currentPage - 2);
+      const rightSide = Math.min(totalPages - 1, currentPage + 2);
+      
+      // Add ellipsis if needed on left side
+      if (leftSide > 2) {
+        items.push(-1); // Use -1 to represent ellipsis
+      }
+      
+      // Add pages around current page
+      for (let i = leftSide; i <= rightSide; i++) {
+        items.push(i);
+      }
+      
+      // Add ellipsis if needed on right side
+      if (rightSide < totalPages - 1) {
+        items.push(-2); // Use -2 to represent ellipsis (different key)
+      }
+      
+      // Always show last page
+      items.push(totalPages);
+    }
+    
+    return items;
+  };
+
   return (
-    <div className="w-full h-full animate-fade-in">
+    <div className="w-full h-full animate-fade-in flex flex-col">
       {showSpeechError && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
@@ -707,31 +939,84 @@ const TextReader = ({
         </Alert>
       )}
       
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center space-x-2">
+          <Button
+            variant={editMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleEditMode}
+            className="rounded-full gap-1"
+          >
+            {editMode ? "Save & View" : "Edit Text"}
+          </Button>
+          
+          {totalPages > 1 && (
+            <div className="text-sm px-2 py-1 bg-muted rounded-md">
+              Page {currentPage} of {totalPages}
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={handleReset}
+            variant="outline"
+            size="sm"
+            className="rounded-full px-3 gap-1"
+            disabled={!fullText || isVoiceChanging}
+          >
+            <RotateCcw className="h-3 w-3" /> Clear
+          </Button>
+        </div>
+      </div>
+      
       <div 
-        className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full"
+        className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full flex-grow"
         style={{ backgroundColor }}
       >
-        {isSpeaking ? (
-          <div 
-            ref={textContainerRef}
-            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y overflow-auto text-left"
-            style={{
-              fontFamily,
-              fontSize: `${fontSize}px`,
-              lineHeight: lineSpacing,
-              letterSpacing: `${letterSpacing}px`,
-              color: textColor,
-              backgroundColor,
-            }}
-          >
-            {displayText}
-          </div>
+        {(editMode || isSpeaking) ? (
+          editMode ? (
+            // Edit mode - show textarea
+            <Textarea
+              ref={textareaRef}
+              value={fullText}
+              onChange={handleTextChange}
+              placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
+              className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
+              style={{
+                fontFamily,
+                fontSize: `${fontSize}px`,
+                lineHeight: lineSpacing,
+                letterSpacing: `${letterSpacing}px`,
+                color: textColor,
+                backgroundColor,
+              }}
+            />
+          ) : (
+            // Reading mode with word highlighting
+            <div 
+              ref={textContainerRef}
+              className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none overflow-auto text-left h-full"
+              style={{
+                fontFamily,
+                fontSize: `${fontSize}px`,
+                lineHeight: lineSpacing,
+                letterSpacing: `${letterSpacing}px`,
+                color: textColor,
+                backgroundColor,
+              }}
+            >
+              {displayText}
+            </div>
+          )
         ) : (
+          // View mode - show current page text without editing or highlighting
           <Textarea
-            value={text}
+            value={textPages[currentPage - 1] || ''}
             onChange={handleTextChange}
             placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
-            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[550px] p-6 w-full resize-y"
+            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
+            readOnly
             style={{
               fontFamily,
               fontSize: `${fontSize}px`,
@@ -744,12 +1029,51 @@ const TextReader = ({
         )}
       </div>
       
+      {/* Pagination Controls */}
+      {totalPages > 1 && !editMode && (
+        <Pagination className="mt-1 mb-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={handlePrevPage}
+                className={currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+            
+            {getPaginationItems().map((item, index) => (
+              item < 0 ? (
+                <PaginationItem key={`ellipsis-${item}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              ) : (
+                <PaginationItem key={`page-${item}`}>
+                  <PaginationLink 
+                    isActive={currentPage === item}
+                    onClick={() => goToPage(item)}
+                  >
+                    {item}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            ))}
+            
+            <PaginationItem>
+              <PaginationNext 
+                onClick={handleNextPage}
+                className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+      
+      {/* Text-to-Speech Controls */}
       <div className="flex flex-wrap gap-3 justify-start items-center">
         <Button
           onClick={togglePlayPause}
           className="rounded-full px-6 transition-all gap-2"
           variant={isSpeaking ? (isPaused ? "outline" : "destructive") : "default"}
-          disabled={isVoiceChanging}
+          disabled={isVoiceChanging || !textPages.length}
         >
           {!isSpeaking ? (
             <>
@@ -842,14 +1166,31 @@ const TextReader = ({
           </SelectContent>
         </Select>
         
-        <Button
-          onClick={handleReset}
-          variant="outline"
-          className="rounded-full px-6 transition-all gap-2"
-          disabled={!text || isVoiceChanging}
-        >
-          <RotateCcw className="h-4 w-4" /> Clear Text
-        </Button>
+        {totalPages > 1 && !editMode && (
+          <div className="flex gap-2 ml-auto">
+            <Button
+              onClick={handlePrevPage}
+              variant="outline"
+              size="sm"
+              className="rounded-full px-4"
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" /> 
+              Previous
+            </Button>
+            
+            <Button
+              onClick={handleNextPage}
+              variant="outline"
+              size="sm"
+              className="rounded-full px-4"
+              disabled={currentPage >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" /> 
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
