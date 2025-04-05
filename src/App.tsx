@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Reader from "./pages/Reader";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
+import Dashboard from "./pages/Dashboard";
 import Navbar from "./components/layout/Navbar";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -26,6 +27,7 @@ const App = () => (
               <main className="flex-grow">
                 <Routes>
                   <Route path="/" element={<Reader />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

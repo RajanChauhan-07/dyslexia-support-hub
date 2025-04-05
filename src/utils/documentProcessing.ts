@@ -4,7 +4,7 @@ import mammoth from 'mammoth';
 
 // Initialize PDF.js worker
 // We need to set the worker source to a CDN URL that serves the PDF.js worker script
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.1.91/build/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 /**
  * Extracts text from a PDF file
