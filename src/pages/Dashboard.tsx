@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -11,13 +10,12 @@ import {
   Calendar
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton'; // Added missing import
+import { Skeleton } from '@/components/ui/skeleton';
 import ReadingActivityChart from '@/components/dashboard/ReadingActivityChart';
 import ReadingStatCard from '@/components/dashboard/ReadingStatCard';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 
-// Define the reading stats interface
 interface ReadingStats {
   wordsRead: number;
   averageSpeed: number;
@@ -52,17 +50,11 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
         
-        // In a real implementation, this would fetch from Supabase
-        // For now, we'll simulate a network request but return zeros for new users
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Check if user has any reading data recorded
-        // This is mocked for now - in a real implementation this would check the database
-        const userHasData = false; // Set to false for new users
+        const userHasData = false;
         
         if (userHasData) {
-          // In a real app, fetch actual data from Supabase
-          // For demonstration, we'll use very small numbers instead of random large ones
           const userStats: ReadingStats = {
             wordsRead: 0,
             averageSpeed: 0,
@@ -76,7 +68,6 @@ const Dashboard = () => {
           setStats(userStats);
           setHasData(true);
         } else {
-          // Set default stats for new users (all zeros)
           setHasData(false);
         }
       } catch (error) {
@@ -254,16 +245,13 @@ const Dashboard = () => {
             ) : (
               <div className="grid grid-cols-7 gap-2">
                 {Array.from({ length: 31 }).map((_, i) => {
-                  // For new users, use no activity level
                   const activityLevel = 0;
                   const getBgClass = () => {
-                    switch(activityLevel) {
-                      case 0: return "bg-gray-100 dark:bg-gray-800";
-                      case 1: return "bg-green-100 dark:bg-green-900/30";
-                      case 2: return "bg-green-200 dark:bg-green-800/40";
-                      case 3: return "bg-green-300 dark:bg-green-700/50";
-                      default: return "bg-gray-100 dark:bg-gray-800";
-                    }
+                    if (activityLevel === 0) return "bg-gray-100 dark:bg-gray-800";
+                    if (activityLevel === 1) return "bg-green-100 dark:bg-green-900/30";
+                    if (activityLevel === 2) return "bg-green-200 dark:bg-green-800/40";
+                    if (activityLevel === 3) return "bg-green-300 dark:bg-green-700/50";
+                    return "bg-gray-100 dark:bg-gray-800";
                   };
                   
                   return (
