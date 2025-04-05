@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -240,8 +239,13 @@ const TextReader = ({
       if (textContainerRef.current) {
         textContainerRef.current.scrollTop = 0;
       }
+      
+      // Increment documents uploaded counter if user is logged in
+      if (user && initialText.trim().length > 0) {
+        incrementDocumentsUploaded();
+      }
     }
-  }, [initialText]);
+  }, [initialText, user]);
 
   useEffect(() => {
     if (text) {
@@ -646,28 +650,6 @@ const TextReader = ({
   const formatSpeedLabel = (speed: number) => {
     return `${speed}x`;
   };
-
-  useEffect(() => {
-    if (initialText) {
-      setText(initialText);
-      
-      if (isSpeaking) {
-        stopSpeech();
-      }
-      
-      setCurrentWordIndex(-1);
-      setCurrentTextPosition(0);
-      
-      if (textContainerRef.current) {
-        textContainerRef.current.scrollTop = 0;
-      }
-      
-      // Increment documents uploaded counter if user is logged in
-      if (user && initialText.trim().length > 0) {
-        incrementDocumentsUploaded();
-      }
-    }
-  }, [initialText, user]);
 
   const incrementDocumentsUploaded = async () => {
     if (!user) return;

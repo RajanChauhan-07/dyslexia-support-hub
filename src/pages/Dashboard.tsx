@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ReadingActivityChart from '@/components/dashboard/ReadingActivityChart';
 import ReadingStatCard from '@/components/dashboard/ReadingStatCard';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ReadingStats {
   wordsRead: number;
