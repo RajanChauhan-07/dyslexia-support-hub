@@ -1,42 +1,123 @@
 
-import { ChartContainer, ChartTooltipContent, ChartTooltip } from "@/components/ui/chart";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
-import { useMemo } from "react";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+
+interface ReadingActivity {
+  date: string;
+  wordsRead: number;
+}
 
 interface ReadingActivityChartProps {
   period: "daily" | "weekly" | "monthly" | "yearly";
+  data?: ReadingActivity[];
 }
 
-const ReadingActivityChart = ({ period }: ReadingActivityChartProps) => {
-  // Generate sample data based on the period
-  const data = useMemo(() => {
+const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) => {
+  // Format chart data based on the time period
+  const getFormattedData = () => {
+    if (!data || data.length === 0) {
+      // Return sample empty data with appropriate time labels
+      switch (period) {
+        case "daily":
+          return Array.from({ length: 24 }, (_, i) => ({
+            name: `${i}:00`,
+            words: 0,
+          }));
+        case "weekly":
+          const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+          return days.map(day => ({
+            name: day,
+            words: 0,
+          }));
+        case "monthly":
+          return Array.from({ length: 30 }, (_, i) => ({
+            name: `${i + 1}`,
+            words: 0,
+          }));
+        case "yearly":
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          return months.map(month => ({
+            name: month,
+            words: 0,
+          }));
+      }
+    }
+
+    // Process actual data
+    const result = [];
+    const dateMap = new Map();
+
+    // Group data by date parts according to period
+    for (const item of data) {
+      const date = new Date(item.date);
+      let key;
+
+      switch (period) {
+        case "daily":
+          key = date.getHours();
+          break;
+        case "weekly":
+          key = date.getDay(); // 0-6 (Sunday-Saturday)
+          break;
+        case "monthly":
+          key = date.getDate(); // 1-31
+          break;
+        case "yearly":
+          key = date.getMonth(); // 0-11
+          break;
+        default:
+          key = date.getDate();
+      }
+
+      if (dateMap.has(key)) {
+        dateMap.set(key, dateMap.get(key) + item.wordsRead);
+      } else {
+        dateMap.set(key, item.wordsRead);
+      }
+    }
+
+    // Convert to chart format
     switch (period) {
       case "daily":
-        return Array.from({ length: 24 }, (_, i) => ({
-          name: `${i}:00`,
-          words: Math.floor(Math.random() * 1000),
-        }));
+        for (let hour = 0; hour < 24; hour++) {
+          result.push({
+            name: `${hour}:00`,
+            words: dateMap.get(hour) || 0,
+          });
+        }
+        break;
       case "weekly":
-        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-        return days.map(day => ({
-          name: day,
-          words: Math.floor(Math.random() * 5000),
-        }));
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        for (let day = 0; day < 7; day++) {
+          result.push({
+            name: days[day],
+            words: dateMap.get(day) || 0,
+          });
+        }
+        break;
       case "monthly":
-        return Array.from({ length: 30 }, (_, i) => ({
-          name: `${i + 1}`,
-          words: Math.floor(Math.random() * 3000),
-        }));
+        for (let day = 1; day <= 31; day++) {
+          result.push({
+            name: `${day}`,
+            words: dateMap.get(day) || 0,
+          });
+        }
+        break;
       case "yearly":
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return months.map(month => ({
-          name: month,
-          words: Math.floor(Math.random() * 30000),
-        }));
-      default:
-        return [];
+        for (let month = 0; month < 12; month++) {
+          result.push({
+            name: months[month],
+            words: dateMap.get(month) || 0,
+          });
+        }
+        break;
     }
-  }, [period]);
+
+    return result;
+  };
+
+  const chartData = getFormattedData();
 
   const chartConfig = {
     words: {
@@ -50,52 +131,49 @@ const ReadingActivityChart = ({ period }: ReadingActivityChartProps) => {
 
   return (
     <ChartContainer className="h-80" config={chartConfig}>
-      <AreaChart
-        data={data}
-        margin={{
-          top: 10,
-          right: 30,
-          left: 0,
-          bottom: 0,
-        }}
-      >
-        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-        <XAxis
-          dataKey="name"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={10}
-          tickFormatter={(value) => 
-            value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value
-          }
-        />
-        <Tooltip
-          content={({ active, payload }) => {
-            if (active && payload && payload.length) {
-              return (
-                <ChartTooltipContent
-                  active={active}
-                  payload={payload}
-                  label={period}
-                />
-              );
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart
+          data={chartData}
+          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis
+            dataKey="name"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+            tickFormatter={(value) => 
+              value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value
             }
-            return null;
-          }}
-        />
-        <Area
-          type="monotone"
-          dataKey="words"
-          stroke="var(--color-words)"
-          fill="var(--color-words)"
-          fillOpacity={0.2}
-        />
-      </AreaChart>
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                return (
+                  <ChartTooltipContent
+                    active={active}
+                    payload={payload}
+                    label=""
+                  />
+                );
+              }
+              return null;
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="words"
+            stroke="var(--color-words)"
+            fill="var(--color-words)"
+            fillOpacity={0.2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </ChartContainer>
   );
 };

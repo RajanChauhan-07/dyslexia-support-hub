@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -26,6 +27,11 @@ interface ReadingStats {
   totalReadingTime: number;
 }
 
+interface ReadingActivity {
+  date: string;
+  wordsRead: number;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<ReadingStats>({
@@ -39,46 +45,145 @@ const Dashboard = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
+  const [activityData, setActivityData] = useState<ReadingActivity[]>([]);
+  const [period, setPeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
 
   useEffect(() => {
-    const fetchUserStats = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
+    if (user) {
+      fetchUserStats();
+      fetchReadingActivity(period);
+    } else {
+      setIsLoading(false);
+      setHasData(false);
+    }
+  }, [user, period]);
+
+  // Set up real-time listener for reading stats updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('reading-stats-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reading_stats',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          console.log('Reading stats changed, refreshing data');
+          fetchUserStats();
+          fetchReadingActivity(period);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, period]);
+
+  const fetchUserStats = async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      console.log('Fetching stats for user:', user.id);
+      const { data, error } = await supabase
+        .from('reading_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching user stats:', error);
+        setHasData(false);
+      } else if (data) {
+        console.log('User stats fetched:', data);
+        
+        const userStats: ReadingStats = {
+          wordsRead: data.words_read || 0,
+          averageSpeed: data.average_speed || 0,
+          documentsUploaded: data.documents_uploaded || 0,
+          documentsFinished: data.documents_finished || 0,
+          currentStreak: data.current_streak || 0,
+          longestStreak: data.longest_streak || 0,
+          totalReadingTime: data.total_reading_time || 0
+        };
+        
+        setStats(userStats);
+        setHasData(true);
+      } else {
+        console.log('No user stats found');
+        setHasData(false);
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchReadingActivity = async (periodType: "daily" | "weekly" | "monthly" | "yearly") => {
+    if (!user) return;
+    
+    try {
+      let timeRange: string;
+      
+      // Set appropriate time range based on period
+      switch (periodType) {
+        case 'daily':
+          timeRange = '1 day';
+          break;
+        case 'weekly':
+          timeRange = '7 days';
+          break;
+        case 'monthly':
+          timeRange = '30 days';
+          break;
+        case 'yearly':
+          timeRange = '365 days';
+          break;
+        default:
+          timeRange = '30 days';
       }
       
-      try {
-        setIsLoading(true);
+      const { data, error } = await supabase
+        .from('reading_activity')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('read_at', `now() - interval '${timeRange}'`)
+        .order('read_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching reading activity:', error);
+      } else if (data && data.length > 0) {
+        console.log('Reading activity data:', data);
         
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const formattedData = data.map(item => ({
+          date: new Date(item.read_at).toISOString().split('T')[0],
+          wordsRead: item.words_read
+        }));
         
-        const userHasData = false;
-        
-        if (userHasData) {
-          const userStats: ReadingStats = {
-            wordsRead: 0,
-            averageSpeed: 0,
-            documentsUploaded: 0,
-            documentsFinished: 0,
-            currentStreak: 0, 
-            longestStreak: 0,
-            totalReadingTime: 0
-          };
-          
-          setStats(userStats);
-          setHasData(true);
-        } else {
-          setHasData(false);
-        }
-      } catch (error) {
-        console.error('Error fetching user stats:', error);
-      } finally {
-        setIsLoading(false);
+        setActivityData(formattedData);
+      } else {
+        console.log('No reading activity found');
+        setActivityData([]);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching reading activity:', error);
+    }
+  };
 
-    fetchUserStats();
-  }, [user]);
+  const handlePeriodChange = (newPeriod: "daily" | "weekly" | "monthly" | "yearly") => {
+    setPeriod(newPeriod);
+  };
 
   if (!user) {
     return (
@@ -139,7 +244,7 @@ const Dashboard = () => {
         />
       </div>
 
-      <Tabs defaultValue="daily" className="w-full mb-8">
+      <Tabs defaultValue="daily" className="w-full mb-8" onValueChange={(value) => handlePeriodChange(value as any)}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Reading Activity</h2>
           <TabsList>
@@ -153,7 +258,7 @@ const Dashboard = () => {
         <TabsContent value="daily" className="mt-0">
           <Card>
             <CardContent className="pt-6">
-              <ReadingActivityChart period="daily" />
+              <ReadingActivityChart period="daily" data={activityData} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -161,7 +266,7 @@ const Dashboard = () => {
         <TabsContent value="weekly" className="mt-0">
           <Card>
             <CardContent className="pt-6">
-              <ReadingActivityChart period="weekly" />
+              <ReadingActivityChart period="weekly" data={activityData} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -169,7 +274,7 @@ const Dashboard = () => {
         <TabsContent value="monthly" className="mt-0">
           <Card>
             <CardContent className="pt-6">
-              <ReadingActivityChart period="monthly" />
+              <ReadingActivityChart period="monthly" data={activityData} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -177,7 +282,7 @@ const Dashboard = () => {
         <TabsContent value="yearly" className="mt-0">
           <Card>
             <CardContent className="pt-6">
-              <ReadingActivityChart period="yearly" />
+              <ReadingActivityChart period="yearly" data={activityData} />
             </CardContent>
           </Card>
         </TabsContent>

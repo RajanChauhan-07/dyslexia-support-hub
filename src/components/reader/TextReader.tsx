@@ -9,14 +9,11 @@ import {
   Volume2, 
   SkipForward, 
   SkipBack,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Minus
 } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
-import { 
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -25,16 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-
-interface TextReaderProps {
-  fontFamily: string;
-  fontSize: number;
-  lineSpacing: number;
-  letterSpacing: number;
-  textColor: string;
-  backgroundColor: string;
-  initialText?: string;
-}
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
 // Voice options - simplified to just two options
 interface VoiceOption {
@@ -47,6 +36,16 @@ const voiceOptions: VoiceOption[] = [
   { id: 'female', name: 'Emily', gender: 'female' },
   { id: 'male', name: 'Daniel', gender: 'male' },
 ];
+
+interface TextReaderProps {
+  fontFamily: string;
+  fontSize: number;
+  lineSpacing: number;
+  letterSpacing: number;
+  textColor: string;
+  backgroundColor: string;
+  initialText?: string;
+}
 
 const TextReader = ({
   fontFamily,
@@ -70,9 +69,116 @@ const TextReader = ({
   const [words, setWords] = useState<string[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
   const [displayText, setDisplayText] = useState<React.ReactNode>(null);
+  const [readingStartTime, setReadingStartTime] = useState<number | null>(null);
+  const [totalWordsRead, setTotalWordsRead] = useState<number>(0);
+  const [readingStats, setReadingStats] = useState({
+    startTime: 0,
+    wordsRead: 0,
+    readingTime: 0,
+  });
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+
+  // Track reading session
+  useEffect(() => {
+    if (isSpeaking && !isPaused && !readingStartTime) {
+      setReadingStartTime(Date.now());
+      setReadingStats(prev => ({
+        ...prev,
+        startTime: Date.now(),
+      }));
+    }
+
+    // Update reading stats when reading stops
+    if (!isSpeaking && readingStartTime) {
+      const elapsedTime = Math.floor((Date.now() - readingStartTime) / 1000); // seconds
+      const wordsRead = currentWordIndex >= 0 ? currentWordIndex + 1 : 0;
+      
+      setReadingStats(prev => ({
+        ...prev,
+        wordsRead: prev.wordsRead + wordsRead,
+        readingTime: prev.readingTime + elapsedTime,
+      }));
+      
+      setTotalWordsRead(prev => prev + wordsRead);
+      setReadingStartTime(null);
+      
+      // Save reading stats to Supabase if user is logged in
+      if (user && wordsRead > 0) {
+        updateReadingStats(wordsRead, elapsedTime);
+      }
+    }
+  }, [isSpeaking, isPaused, readingStartTime, currentWordIndex, user]);
+
+  // Update Supabase with reading stats
+  const updateReadingStats = async (wordsRead: number, readingTime: number) => {
+    if (!user) return;
+    
+    try {
+      // Calculate average speed (words per minute)
+      const wpm = readingTime > 0 ? Math.round((wordsRead / readingTime) * 60) : 0;
+      
+      // First try to get existing stats
+      const { data: existingStats, error: fetchError } = await supabase
+        .from('reading_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching reading stats:', fetchError);
+        return;
+      }
+      
+      // Record this reading activity
+      await supabase
+        .from('reading_activity')
+        .insert({
+          user_id: user.id,
+          words_read: wordsRead,
+          reading_time: readingTime,
+          read_at: new Date().toISOString(),
+        });
+      
+      if (existingStats) {
+        // Update existing stats
+        const totalWords = existingStats.words_read + wordsRead;
+        const totalTime = existingStats.total_reading_time + readingTime;
+        const avgSpeed = totalTime > 0 ? Math.round((totalWords / totalTime) * 60) : 0;
+        
+        await supabase
+          .from('reading_stats')
+          .update({
+            words_read: totalWords,
+            total_reading_time: totalTime,
+            average_speed: avgSpeed,
+            last_read_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id);
+      } else {
+        // Create new stats record
+        await supabase
+          .from('reading_stats')
+          .insert({
+            user_id: user.id,
+            words_read: wordsRead,
+            average_speed: wpm,
+            total_reading_time: readingTime,
+            documents_uploaded: 1,
+            documents_finished: wordsRead === words.length ? 1 : 0,
+            current_streak: 1,
+            longest_streak: 1,
+            last_read_at: new Date().toISOString(),
+          });
+      }
+      
+      console.log('Reading stats updated:', { wordsRead, readingTime, wpm });
+    } catch (error) {
+      console.error('Error updating reading stats:', error);
+    }
+  };
 
   useEffect(() => {
     if (initialText) {
@@ -434,14 +540,41 @@ const TextReader = ({
     }
   };
 
-  const handleRateChange = (value: number[]) => {
-    setSpeechRate(value[0]);
+  // Modify the speech rate functions to use increment/decrement buttons
+  const incrementRate = () => {
+    const newRate = Math.min(2, speechRate + 0.25);
+    setSpeechRate(newRate);
     
     if (isSpeaking) {
       const currentPos = currentTextPosition;
       stopSpeech();
-      startSpeech(currentPos);
+      setTimeout(() => {
+        startSpeech(currentPos);
+      }, 50);
     }
+    
+    toast({
+      title: "Speed Increased",
+      description: `Reading speed set to ${newRate}x`,
+    });
+  };
+  
+  const decrementRate = () => {
+    const newRate = Math.max(0.25, speechRate - 0.25);
+    setSpeechRate(newRate);
+    
+    if (isSpeaking) {
+      const currentPos = currentTextPosition;
+      stopSpeech();
+      setTimeout(() => {
+        startSpeech(currentPos);
+      }, 50);
+    }
+    
+    toast({
+      title: "Speed Decreased",
+      description: `Reading speed set to ${newRate}x`,
+    });
   };
 
   const handleVoiceChange = (value: string) => {
@@ -468,6 +601,72 @@ const TextReader = ({
 
   const formatSpeedLabel = (speed: number) => {
     return `${speed}x`;
+  };
+
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText);
+      
+      if (isSpeaking) {
+        stopSpeech();
+      }
+      
+      setCurrentWordIndex(-1);
+      setCurrentTextPosition(0);
+      
+      if (textContainerRef.current) {
+        textContainerRef.current.scrollTop = 0;
+      }
+      
+      // Increment documents uploaded counter if user is logged in
+      if (user && initialText.trim().length > 0) {
+        incrementDocumentsUploaded();
+      }
+    }
+  }, [initialText, user]);
+
+  const incrementDocumentsUploaded = async () => {
+    if (!user) return;
+    
+    try {
+      // First check if the user has stats
+      const { data, error } = await supabase
+        .from('reading_stats')
+        .select('documents_uploaded')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching documents count:', error);
+        return;
+      }
+      
+      if (data) {
+        // Update existing record
+        await supabase
+          .from('reading_stats')
+          .update({
+            documents_uploaded: data.documents_uploaded + 1
+          })
+          .eq('user_id', user.id);
+      } else {
+        // Create new record
+        await supabase
+          .from('reading_stats')
+          .insert({
+            user_id: user.id,
+            words_read: 0,
+            average_speed: 0,
+            documents_uploaded: 1,
+            documents_finished: 0,
+            current_streak: 0,
+            longest_streak: 0,
+            total_reading_time: 0
+          });
+      }
+    } catch (error) {
+      console.error('Error incrementing documents uploaded:', error);
+    }
   };
 
   return (
@@ -565,34 +764,37 @@ const TextReader = ({
           </Button>
         </div>
         
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button 
-              variant="outline" 
-              className="rounded-full transition-all"
-              disabled={!('speechSynthesis' in window) || isVoiceChanging}
-            >
-              {formatSpeedLabel(speechRate)}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80">
-            <div className="space-y-4">
-              <h4 className="font-medium text-center">Reading Speed</h4>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">0.25x</span>
-                <Slider
-                  value={[speechRate]}
-                  min={0.25}
-                  max={2}
-                  step={0.25}
-                  onValueChange={handleRateChange}
-                  className="w-52"
-                />
-                <span className="text-sm">2x</span>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-center gap-1">
+          <Button 
+            variant="outline" 
+            size="icon"
+            className="rounded-full"
+            onClick={decrementRate}
+            disabled={speechRate <= 0.25 || isVoiceChanging}
+            title="Decrease speed"
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="rounded-full w-16"
+            disabled={!('speechSynthesis' in window) || isVoiceChanging}
+          >
+            {formatSpeedLabel(speechRate)}
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="icon"
+            className="rounded-full"
+            onClick={incrementRate}
+            disabled={speechRate >= 2 || isVoiceChanging}
+            title="Increase speed"
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
         
         <Select 
           value={selectedVoice}
