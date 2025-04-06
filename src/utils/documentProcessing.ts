@@ -1,13 +1,9 @@
-
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import { PDFDocumentProxy } from 'pdfjs-dist';
 
-// Import the PDF.js worker directly instead of using CDN
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.js?url';
-
-// Set the worker source directly with our imported worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Set the worker source using a more compatible approach for Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 /**
  * Extracts text from a PDF file with improved error handling and chunking for large documents
@@ -24,9 +20,9 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // Create PDF loading task with simpler configuration
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(arrayBuffer),
-      // Remove cMapUrl to avoid external dependency
-      // Instead, use built-in standard fonts
-      standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
+      // Use CDN for standard fonts as fallback
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+      cMapPacked: true,
     });
     
     // Add timeout to prevent hanging
