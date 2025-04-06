@@ -37,7 +37,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     }
     
     // Set a longer timeout for larger files
-    const timeoutDuration = file.size > 5 * 1024 * 1024 ? 60000 : 30000; // 60s for files > 5MB
+    const timeoutDuration = file.size > 5 * 1024 * 1024 ? 120000 : 60000; // 120s for files > 5MB
     
     processingTimeoutRef.current = setTimeout(() => {
       if (isUploading) {
@@ -63,7 +63,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       
       console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       
-      const maxSizeMB = 15; // Increased to 15MB
+      const maxSizeMB = 20; // Increased to 20MB
       if (file.size > maxSizeMB * 1024 * 1024) {
         throw new Error(`File is too large. Maximum size is ${maxSizeMB}MB.`);
       }
@@ -73,7 +73,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
         if (file.size > 5 * 1024 * 1024) {
           toast({
             title: "Processing Large PDF",
-            description: "Large PDFs may take longer to process and might be partially extracted. Please be patient...",
+            description: "Large PDFs may take longer to process. Please be patient...",
           });
         } else {
           toast({
@@ -87,9 +87,9 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       const progressInterval = setInterval(() => {
         setProcessingProgress(prev => {
           // Increase progress gradually, max out at 90% (save 100% for completion)
-          return Math.min(90, prev + 5);
+          return Math.min(90, prev + 2);
         });
-      }, 1000);
+      }, 500);
       
       let extractedText;
       try {
@@ -159,6 +159,24 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       fileInputRef.current.click();
     }
   };
+  
+  // Handle file drop
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (fileInputRef.current) {
+        fileInputRef.current.files = e.dataTransfer.files;
+        handleFileChange({ target: { files: e.dataTransfer.files } } as React.ChangeEvent<HTMLInputElement>);
+      }
+    }
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   useEffect(() => {
     return () => {
@@ -186,8 +204,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
               Upload a PDF, Word document, or text file to extract its content for reading.
               <br />
               <span className="text-xs text-muted-foreground mt-1 block">
-                Note: Large documents (200+ pages) may be partially processed. For best results with novels, 
-                try uploading 50-100 pages at a time.
+                Note: For best results with large documents like novels, try uploading 50-100 pages at a time.
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -195,13 +212,15 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
           <div className="grid gap-4 py-4">
             <div 
               onClick={handleDropZoneClick}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
               className="flex flex-col items-center justify-center gap-4 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
             >
               <FileText className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground text-center">
                 Drag and drop your document here or click to browse.
                 <br />
-                Supports PDF, Word, and text files (max 15MB).
+                Supports PDF, Word, and text files (max 20MB).
               </p>
               
               {isUploading && processingProgress > 0 ? (

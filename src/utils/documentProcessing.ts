@@ -17,8 +17,15 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // Load the PDF document with improved error handling
     console.log('Creating PDF loading task');
     
+    // Set PDF.js cMapUrl to avoid issues with character mapping
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.14.305/cmaps/',
+      cMapPacked: true,
+    });
+    
     // Add timeout to prevent hanging
-    const loadingPromise = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const loadingPromise = loadingTask.promise;
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('PDF loading timed out after 60 seconds')), 60000)
     );
@@ -43,7 +50,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         const page = await pdf.getPage(i);
         
         // Try structured extraction first (works better for most PDFs)
-        const textContent = await page.getTextContent();
+        const textContent = await page.getTextContent({ normalizeWhitespace: true });
         const pageText = textContent.items
           .map((item: any) => item.str)
           .join(' ');
@@ -84,9 +91,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       
       // Every 10 pages, check if we've already got a reasonable amount of text
       if (i % 10 === 0 && fullText.length > 50000) {
-        console.log(`Already extracted ${fullText.length} characters. Stopping early to prevent timeout.`);
-        fullText += `\n\n[Note: Document was partially processed. Only the first ${i} of ${pdf.numPages} pages were extracted due to size limitations.]\n`;
-        break;
+        console.log(`Already extracted ${fullText.length} characters. Processing will continue.`);
       }
     }
     
@@ -186,11 +191,11 @@ export const processLargeText = (text: string, maxChunkSize = 100000): string =>
  */
 export const processDocument = async (file: File): Promise<string> => {
   const fileType = file.type;
-  console.log('Processing document of type:', fileType);
+  console.log('Processing document of type:', fileType, 'and size:', file.size);
   
   try {
     // Check file size
-    const maxSizeMB = 15;
+    const maxSizeMB = 20; // Increased to allow larger files
     if (file.size > maxSizeMB * 1024 * 1024) {
       throw new Error(`File is too large. Maximum size is ${maxSizeMB}MB.`);
     }

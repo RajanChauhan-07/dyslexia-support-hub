@@ -5,6 +5,7 @@ import TextCustomizer from '@/components/reader/TextCustomizer';
 import DocumentUploader from '@/components/reader/DocumentUploader';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { processLargeText } from '@/utils/documentProcessing';
 
 const Reader = () => {
   // Default settings
@@ -16,6 +17,7 @@ const Reader = () => {
   const [backgroundColor, setBackgroundColor] = useState<string>('#f8f5de');
   const [text, setText] = useState<string>(''); // Full extracted text
   const [pageSize, setPageSize] = useState<number>(2000); // Characters per page
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -55,8 +57,40 @@ const Reader = () => {
   };
 
   const handleTextExtracted = (extractedText: string) => {
-    setText(extractedText);
+    setIsProcessing(true);
+    
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      try {
+        // Break down large text files into manageable chunks
+        const processedText = processLargeText(extractedText, 50000);
+        setText(processedText);
+        
+        toast({
+          title: "Text Ready for Reading",
+          description: "Your document has been processed and is now ready to read.",
+        });
+      } catch (error) {
+        console.error("Error processing text:", error);
+        toast({
+          title: "Processing Error",
+          description: "There was a problem preparing your text. Please try a different document.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 100);
   };
+
+  // Calculate optimal page size based on screen size and font size
+  useEffect(() => {
+    // Adjust page size based on device and font
+    const baseSize = isMobile ? 1200 : 2000;
+    const fontAdjustment = Math.max(0.6, Math.min(1.4, fontSize / 18));
+    
+    setPageSize(Math.round(baseSize / fontAdjustment));
+  }, [isMobile, fontSize]);
 
   return (
     <div className="min-h-screen w-full pt-16 pb-8">
@@ -69,6 +103,11 @@ const Reader = () => {
           <div className="flex justify-center mb-2">
             <DocumentUploader onTextExtracted={handleTextExtracted} />
           </div>
+          {isProcessing && (
+            <p className="text-sm text-muted-foreground animate-pulse mt-2">
+              Processing your document... This may take a moment for larger files.
+            </p>
+          )}
         </div>
         
         {isMobile ? (
