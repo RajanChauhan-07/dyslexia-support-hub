@@ -2,8 +2,19 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import { PDFDocumentProxy } from 'pdfjs-dist';
 
-// Set the worker source using a more compatible approach for Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+// Instead of loading external worker, use inline worker
+const pdfjsWorker = `
+  importScripts("https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js");
+`;
+
+// Create a blob from the worker code
+const blob = new Blob([pdfjsWorker], { type: 'application/javascript' });
+
+// Create a URL for the blob
+const workerUrl = URL.createObjectURL(blob);
+
+// Configure PDF.js to use our worker blob URL
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
  * Extracts text from a PDF file with improved error handling and chunking for large documents
@@ -17,12 +28,9 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // Load the PDF document with improved error handling
     console.log('Creating PDF loading task');
     
-    // Create PDF loading task with simpler configuration
+    // Create loading task with minimal configuration to avoid issues
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(arrayBuffer),
-      // Use CDN for standard fonts as fallback
-      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-      cMapPacked: true,
     });
     
     // Add timeout to prevent hanging
@@ -58,7 +66,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         
         // If we got very little text, try alternate method
         if (pageText.trim().length < 10 && textContent.items.length < 5) {
-          // Fallback to rendering and OCR-like approach for problematic PDFs
+          // Fallback to rendering approach for problematic PDFs
           console.log(`Page ${i} has very little text, trying alternate extraction`);
           const viewport = page.getViewport({ scale: 1.5 });
           const canvas = document.createElement('canvas');
@@ -76,8 +84,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
             viewport: viewport
           }).promise;
           
-          // For now, just use the sparse text we have
-          // In a full implementation, we would use an OCR library here
+          // Use the sparse text we have for now
           fullText += pageText + '\n\n';
         } else {
           fullText += pageText + '\n\n';
@@ -116,6 +123,13 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       throw new Error(`PDF extraction failed: ${error.message}`);
     }
     throw new Error('Failed to extract text from PDF. Please try another document or format.');
+  } finally {
+    // Clean up any resources if needed
+    try {
+      URL.revokeObjectURL(workerUrl);
+    } catch (e) {
+      console.error('Error cleaning up resources:', e);
+    }
   }
 };
 
