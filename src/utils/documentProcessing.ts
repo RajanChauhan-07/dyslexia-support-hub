@@ -1,4 +1,3 @@
-
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
@@ -50,7 +49,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         const page = await pdf.getPage(i);
         
         // Try structured extraction first (works better for most PDFs)
-        const textContent = await page.getTextContent({ normalizeWhitespace: true });
+        const textContent = await page.getTextContent();
         const pageText = textContent.items
           .map((item: any) => item.str)
           .join(' ');
