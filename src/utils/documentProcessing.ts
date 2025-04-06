@@ -1,8 +1,13 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
+import { PDFDocumentProxy } from 'pdfjs-dist';
 
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Import the PDF.js worker directly instead of using CDN
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.js?url';
+
+// Set the worker source directly with our imported worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /**
  * Extracts text from a PDF file with improved error handling and chunking for large documents
@@ -16,11 +21,12 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     // Load the PDF document with improved error handling
     console.log('Creating PDF loading task');
     
-    // Set PDF.js cMapUrl to avoid issues with character mapping
+    // Create PDF loading task with simpler configuration
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(arrayBuffer),
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.14.305/cmaps/',
-      cMapPacked: true,
+      // Remove cMapUrl to avoid external dependency
+      // Instead, use built-in standard fonts
+      standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
     });
     
     // Add timeout to prevent hanging
@@ -30,7 +36,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     );
     
     // Use Promise.race to implement timeout
-    const pdf = await Promise.race([loadingPromise, timeoutPromise]) as pdfjsLib.PDFDocumentProxy;
+    const pdf = await Promise.race([loadingPromise, timeoutPromise]) as PDFDocumentProxy;
     
     console.log(`PDF loaded with ${pdf.numPages} pages`);
     
