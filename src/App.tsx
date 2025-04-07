@@ -15,7 +15,7 @@ const queryClient = new QueryClient();
 
 // Define a global variable to disable the Lovable badge
 // This will be detected by the Lovable platform and hide the badge
-window.__LOVABLE_HIDE_BADGE = true;
+(window as Window).__LOVABLE_HIDE_BADGE = true;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
