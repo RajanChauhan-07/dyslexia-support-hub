@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import { PDFDocumentProxy } from 'pdfjs-dist';
+import { createWorker, createScheduler } from 'tesseract.js';
 
 // Instead of loading external worker, use inline worker
 const pdfjsWorker = `
@@ -17,7 +18,7 @@ const workerUrl = URL.createObjectURL(blob);
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
- * Extracts text from a PDF file with improved error handling and chunking for large documents
+ * Extracts text from a PDF file with improved error handling, chunking, and OCR for scanned documents
  */
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
@@ -51,6 +52,8 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     
     let fullText = '';
     const maxProcessPages = Math.min(pdf.numPages, 300); // Limit to 300 pages max
+    let ocrRequired = false;
+    let ocrProcessedPages = 0;
     
     // Extract text from each page with better error handling
     for (let i = 1; i <= maxProcessPages; i++) {
@@ -64,28 +67,57 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
           .map((item: any) => item.str)
           .join(' ');
         
-        // If we got very little text, try alternate method
-        if (pageText.trim().length < 10 && textContent.items.length < 5) {
-          // Fallback to rendering approach for problematic PDFs
-          console.log(`Page ${i} has very little text, trying alternate extraction`);
-          const viewport = page.getViewport({ scale: 1.5 });
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
+        // If we got very little text, try OCR
+        if (pageText.trim().length < 20 && textContent.items.length < 10) {
+          console.log(`Page ${i} has very little text, trying OCR extraction`);
+          ocrRequired = true;
+          ocrProcessedPages++;
           
-          if (!context) {
-            throw new Error('Could not create canvas context');
+          // Limit OCR processing to a reasonable number of pages
+          if (ocrProcessedPages <= 20) {
+            try {
+              // Render the page to a canvas for OCR processing
+              const viewport = page.getViewport({ scale: 1.5 });
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d');
+              
+              if (!context) {
+                throw new Error('Could not create canvas context');
+              }
+              
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              
+              await page.render({
+                canvasContext: context,
+                viewport: viewport
+              }).promise;
+              
+              // Use Tesseract.js for OCR
+              const scheduler = createScheduler();
+              const worker = await createWorker('eng');
+              scheduler.addWorker(worker);
+              
+              console.log(`Running OCR on page ${i}`);
+              const { data: { text: ocrText } } = await scheduler.addJob('recognize', canvas);
+              await scheduler.terminate();
+              
+              if (ocrText && ocrText.trim().length > pageText.trim().length) {
+                console.log(`OCR successful for page ${i}, extracted ${ocrText.length} characters`);
+                fullText += ocrText + '\n\n';
+              } else {
+                // Use original text if OCR didn't improve results
+                fullText += pageText + '\n\n';
+              }
+            } catch (ocrError) {
+              console.error(`OCR failed for page ${i}:`, ocrError);
+              fullText += pageText + '\n\n';
+            }
+          } else {
+            // Skip OCR if we've already processed too many pages
+            console.log(`Skipping OCR for page ${i} (limit reached)`);
+            fullText += pageText + '\n\n';
           }
-          
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-          
-          await page.render({
-            canvasContext: context,
-            viewport: viewport
-          }).promise;
-          
-          // Use the sparse text we have for now
-          fullText += pageText + '\n\n';
         } else {
           fullText += pageText + '\n\n';
         }
@@ -104,6 +136,11 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     }
     
     console.log('PDF extraction completed successfully');
+    
+    // If OCR was used, add a note
+    if (ocrRequired) {
+      fullText += `\n\n[Note: Some pages in this document were processed using OCR because they appeared to be scanned or image-based. Text accuracy may vary.]\n`;
+    }
     
     // If we got very little text from the whole document, throw an error
     if (fullText.trim().length < 20) {

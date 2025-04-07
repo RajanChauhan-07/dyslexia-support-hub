@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Loader2 } from 'lucide-react';
+import { Upload, FileText, Loader2, BookOpen } from 'lucide-react';
 import { 
   Dialog,
   DialogContent,
@@ -37,7 +37,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     }
     
     // Set a longer timeout for larger files
-    const timeoutDuration = file.size > 5 * 1024 * 1024 ? 120000 : 60000; // 120s for files > 5MB
+    const timeoutDuration = file.size > 5 * 1024 * 1024 ? 180000 : 90000; // 180s for files > 5MB (increased for OCR)
     
     processingTimeoutRef.current = setTimeout(() => {
       if (isUploading) {
@@ -69,16 +69,16 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       }
       
       if (file.type.includes('pdf')) {
-        // Show more detailed message for large PDFs
+        // Show more detailed message for PDFs
         if (file.size > 5 * 1024 * 1024) {
           toast({
             title: "Processing Large PDF",
-            description: "Large PDFs may take longer to process. Please be patient...",
+            description: "Large PDFs may take longer to process. OCR will be used for scanned pages if needed.",
           });
         } else {
           toast({
             title: "Processing PDF",
-            description: "PDF extraction may take a moment...",
+            description: "PDF extraction in progress with OCR capability for scanned content...",
           });
         }
       }
@@ -87,7 +87,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       const progressInterval = setInterval(() => {
         setProcessingProgress(prev => {
           // Increase progress gradually, max out at 90% (save 100% for completion)
-          return Math.min(90, prev + 2);
+          return Math.min(90, prev + 1.5);
         });
       }, 500);
       
@@ -102,7 +102,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
         console.error('Document processing error:', processingError);
         
         if (file.type.includes('pdf')) {
-          throw new Error(`PDF processing failed. This may be due to encryption, complex formatting, or scanned content. Try a different PDF or manually copy the text.`);
+          throw new Error(`PDF processing failed. This may be due to encryption, complex formatting, or scanned content that couldn't be processed with OCR. Try a different PDF or manually copy the text.`);
         } else {
           throw new Error(`Could not process this ${file.type.includes('pdf') ? 'PDF' : 'document'}: ${processingError.message || 'Unknown error'}`);
         }
@@ -110,7 +110,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
       
       if (!extractedText || extractedText.trim() === '') {
         if (file.type.includes('pdf')) {
-          throw new Error('No text could be extracted from this PDF. It may contain only images or be scanned without OCR.');
+          throw new Error('No text could be extracted from this PDF. It may contain only images or be scanned without readable text.');
         } else {
           throw new Error('No text could be extracted from this document.');
         }
@@ -204,7 +204,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
               Upload a PDF, Word document, or text file to extract its content for reading.
               <br />
               <span className="text-xs text-muted-foreground mt-1 block">
-                Note: For best results with large documents like novels, try uploading 50-100 pages at a time.
+                Note: PDFs with scanned pages will be processed using OCR technology to extract text from images.
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -220,7 +220,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
               <p className="text-sm text-muted-foreground text-center">
                 Drag and drop your document here or click to browse.
                 <br />
-                Supports PDF, Word, and text files (max 20MB).
+                Supports PDF (including scanned), Word, and text files (max 20MB).
               </p>
               
               {isUploading && processingProgress > 0 ? (
@@ -233,6 +233,11 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
                   </div>
                   <p className="text-xs text-center mt-2 text-muted-foreground">
                     Processing document ({processingProgress}%)...
+                    {processingProgress > 50 && processingProgress < 90 && (
+                      <span className="block mt-1">
+                        {file.type?.includes('pdf') ? 'OCR processing may take longer for scanned pages.' : ''}
+                      </span>
+                    )}
                   </p>
                 </div>
               ) : (
@@ -252,7 +257,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
                     </>
                   ) : (
                     <>
-                      <Upload className="h-4 w-4 mr-2" />
+                      <BookOpen className="h-4 w-4 mr-2" />
                       Select File
                     </>
                   )}
