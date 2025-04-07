@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -38,7 +37,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Voice options - simplified to just two options
 interface VoiceOption {
   id: string;
   name: string;
@@ -59,6 +57,7 @@ interface TextReaderProps {
   backgroundColor: string;
   initialText?: string;
   pageSize?: number;
+  onTextChange?: (text: string) => void;
 }
 
 const TextReader = ({
@@ -70,6 +69,7 @@ const TextReader = ({
   backgroundColor,
   initialText = '',
   pageSize = 2000,
+  onTextChange,
 }: TextReaderProps) => {
   const [fullText, setFullText] = useState<string>(initialText);
   const [displayText, setDisplayText] = useState<React.ReactNode>(null);
@@ -101,25 +101,19 @@ const TextReader = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
 
-  // Split text into pages when full text changes
   useEffect(() => {
     if (fullText) {
-      // Split the text into pages
       const pages: string[] = [];
       let remaining = fullText;
       
       while (remaining.length > 0) {
-        // Try to find a good breaking point near pageSize
         let breakPoint = Math.min(pageSize, remaining.length);
         
-        // If we're not at the end, try to break at a paragraph or sentence
         if (breakPoint < remaining.length) {
-          // Look for paragraph breaks first (prefer breaking at paragraphs)
           const paragraphBreak = remaining.lastIndexOf('\n\n', breakPoint);
-          if (paragraphBreak > pageSize * 0.7) { // At least 70% of desired page size
-            breakPoint = paragraphBreak + 2; // Include the newlines
+          if (paragraphBreak > pageSize * 0.7) {
+            breakPoint = paragraphBreak + 2;
           } else {
-            // Try to break at a sentence (period, question mark, exclamation)
             const sentenceBreak = Math.max(
               remaining.lastIndexOf('. ', breakPoint),
               remaining.lastIndexOf('? ', breakPoint),
@@ -127,14 +121,12 @@ const TextReader = ({
             );
             
             if (sentenceBreak > pageSize * 0.7) {
-              breakPoint = sentenceBreak + 2; // Include the period and space
+              breakPoint = sentenceBreak + 2;
             } else {
-              // Last resort: break at a space
               const spaceBreak = remaining.lastIndexOf(' ', breakPoint);
               if (spaceBreak > pageSize * 0.8) {
                 breakPoint = spaceBreak + 1;
               }
-              // If we couldn't find a good break, just use the pageSize
             }
           }
         }
@@ -145,9 +137,8 @@ const TextReader = ({
       
       setTextPages(pages);
       setTotalPages(pages.length);
-      setCurrentPage(1); // Reset to first page when new text is loaded
+      setCurrentPage(1);
       
-      // Process the first page
       if (pages.length > 0) {
         processTextForPage(pages[0]);
       } else {
@@ -155,7 +146,7 @@ const TextReader = ({
         setCurrentWordIndex(-1);
       }
       
-      setEditMode(!pages.length); // Enter edit mode if no text
+      setEditMode(!pages.length);
     } else {
       setTextPages([]);
       setTotalPages(1);
@@ -166,14 +157,12 @@ const TextReader = ({
     }
   }, [fullText, pageSize]);
 
-  // Update display text when page changes
   useEffect(() => {
     if (textPages.length > 0 && currentPage <= textPages.length) {
       processTextForPage(textPages[currentPage - 1]);
     }
   }, [currentPage, textPages]);
 
-  // Process text for the current page
   const processTextForPage = (pageText: string) => {
     const lines = pageText.split(/\n/).map(line => line.trim());
     const parsedWords: string[] = [];
@@ -192,7 +181,6 @@ const TextReader = ({
     updateDisplayText(-1);
   };
 
-  // Track reading session
   useEffect(() => {
     if (isSpeaking && !isPaused && !readingStartTime) {
       setReadingStartTime(Date.now());
@@ -202,9 +190,8 @@ const TextReader = ({
       }));
     }
 
-    // Update reading stats when reading stops
     if (!isSpeaking && readingStartTime) {
-      const elapsedTime = Math.floor((Date.now() - readingStartTime) / 1000); // seconds
+      const elapsedTime = Math.floor((Date.now() - readingStartTime) / 1000);
       const wordsRead = currentWordIndex >= 0 ? currentWordIndex + 1 : 0;
       
       setReadingStats(prev => ({
@@ -216,24 +203,20 @@ const TextReader = ({
       setTotalWordsRead(prev => prev + wordsRead);
       setReadingStartTime(null);
       
-      // Save reading stats to Supabase if user is logged in
       if (user && wordsRead > 0) {
         updateReadingStats(wordsRead, elapsedTime);
       }
     }
   }, [isSpeaking, isPaused, readingStartTime, currentWordIndex, user]);
 
-  // Update Supabase with reading stats
   const updateReadingStats = async (wordsRead: number, readingTime: number) => {
     if (!user) return;
     
     try {
-      // Calculate average speed (words per minute)
       const wpm = readingTime > 0 ? Math.round((wordsRead / readingTime) * 60) : 0;
       
       console.log(`Updating reading stats: ${wordsRead} words in ${readingTime} seconds (${wpm} wpm)`);
       
-      // Record this reading activity
       const { error: activityError } = await supabase
         .from('reading_activity')
         .insert({
@@ -248,7 +231,6 @@ const TextReader = ({
         return;
       }
       
-      // First try to get existing stats
       const { data: existingStats, error: fetchError } = await supabase
         .from('reading_stats')
         .select('*')
@@ -261,33 +243,23 @@ const TextReader = ({
       }
       
       if (existingStats) {
-        // Update existing stats
         const totalWords = existingStats.words_read + wordsRead;
         const totalTime = existingStats.total_reading_time + readingTime;
         const avgSpeed = totalTime > 0 ? Math.round((totalWords / totalTime) * 60) : 0;
         
-        // Check if this is a continuation of the current streak
-        const lastReadDate = new Date(existingStats.last_read_at);
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        // Consider it a streak if last read was today or yesterday
-        const isToday = lastReadDate.toDateString() === today.toDateString();
-        const isYesterday = lastReadDate.toDateString() === yesterday.toDateString();
+        const isToday = new Date(existingStats.last_read_at).toDateString() === new Date().toDateString();
+        const isYesterday = new Date(existingStats.last_read_at).toDateString() === new Date().toDateString();
         
         let currentStreak = existingStats.current_streak;
         let longestStreak = existingStats.longest_streak;
         
         if (!isToday) {
           if (isYesterday) {
-            // Continue streak
             currentStreak += 1;
             if (currentStreak > longestStreak) {
               longestStreak = currentStreak;
             }
           } else {
-            // Reset streak
             currentStreak = 1;
           }
         }
@@ -310,7 +282,6 @@ const TextReader = ({
           console.log('Reading stats updated successfully');
         }
       } else {
-        // Create new stats record
         const { error: insertError } = await supabase
           .from('reading_stats')
           .insert({
@@ -336,7 +307,6 @@ const TextReader = ({
     }
   };
 
-  // Update when initialText changes
   useEffect(() => {
     if (initialText) {
       setFullText(initialText);
@@ -352,130 +322,40 @@ const TextReader = ({
         textContainerRef.current.scrollTop = 0;
       }
       
-      // Increment documents uploaded counter if user is logged in
       if (user && initialText.trim().length > 0) {
         incrementDocumentsUploaded();
       }
     }
   }, [initialText, user]);
 
-  // Update display text when word index changes
-  useEffect(() => {
-    updateDisplayText(currentWordIndex);
-  }, [currentWordIndex, words]);
-
-  const updateDisplayText = (wordIndex: number) => {
-    if (!words.length) {
-      setDisplayText(null);
-      return;
-    }
-
-    let currentContent: JSX.Element[] = [];
-    let lineContent: JSX.Element[] = [];
-    
-    words.forEach((word, index) => {
-      if (word === "\n") {
-        currentContent.push(
-          <div key={`line-${index}`} className="mb-2">
-            {[...lineContent]}
-          </div>
-        );
-        lineContent = [];
-      } else {
-        const isHighlighted = index === wordIndex;
-        lineContent.push(
-          <span
-            key={index}
-            className={`inline-block ${
-              isHighlighted 
-                ? 'bg-primary/70 text-primary-foreground px-1 py-0.5 rounded' 
-                : 'px-0.5'
-            }`}
-            style={{
-              transition: 'all 0.4s ease-out',
-            }}
-          >
-            {word}{' '}
-          </span>
-        );
-      }
-    });
-    
-    if (lineContent.length > 0) {
-      currentContent.push(
-        <div key="final-line" className="mb-2">
-          {lineContent}
-        </div>
-      );
-    }
-
-    setDisplayText(<>{currentContent}</>);
-    
-    if (wordIndex >= 0 && textContainerRef.current) {
-      const highlightedElement = textContainerRef.current.querySelector(`span:nth-child(${wordIndex + 1})`);
-      if (highlightedElement) {
-        const containerRect = textContainerRef.current.getBoundingClientRect();
-        const elementRect = highlightedElement.getBoundingClientRect();
-        
-        if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
-          highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    }
-  };
-
-  // Initialize speech synthesis
-  useEffect(() => {
-    const loadVoices = () => {
-      const synth = window.speechSynthesis;
-      const voices = synth.getVoices();
-      
-      if (voices.length > 0) {
-        setAvailableVoices(voices);
-        setIsVoicesLoaded(true);
-      }
-    };
-
-    if ('speechSynthesis' in window) {
-      loadVoices();
-      
-      window.speechSynthesis.onvoiceschanged = () => {
-        loadVoices();
-      };
-    }
-
-    return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = null;
-        if (isSpeaking) {
-          window.speechSynthesis.cancel();
-        }
-      }
-    };
-  }, []);
-
   useEffect(() => {
     setShowSpeechError(false);
   }, [fullText]);
 
-  // Handle text edit
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // When in edit mode, update the full text
+    const newValue = e.target.value;
+    
     if (editMode) {
-      setFullText(e.target.value);
+      setFullText(newValue);
+      if (onTextChange) {
+        onTextChange(newValue);
+      }
     } else {
-      // When not in edit mode (just viewing a page), update just the current page
       const newPages = [...textPages];
-      newPages[currentPage - 1] = e.target.value;
+      newPages[currentPage - 1] = newValue;
       setTextPages(newPages);
       
-      // Update the full text by joining all pages
-      setFullText(newPages.join(''));
+      const updatedFullText = newPages.join('');
+      setFullText(updatedFullText);
+      
+      if (onTextChange) {
+        onTextChange(updatedFullText);
+      }
     }
+    
     setCurrentWordIndex(-1);
   };
 
-  // Reset text
   const handleReset = () => {
     setFullText('');
     if (isSpeaking) {
@@ -493,7 +373,6 @@ const TextReader = ({
     });
   };
 
-  // Navigate to next page
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       if (isSpeaking) {
@@ -507,7 +386,6 @@ const TextReader = ({
     }
   };
 
-  // Navigate to previous page
   const handlePrevPage = () => {
     if (currentPage > 1) {
       if (isSpeaking) {
@@ -521,7 +399,6 @@ const TextReader = ({
     }
   };
 
-  // Go to specific page
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       if (isSpeaking) {
@@ -535,7 +412,6 @@ const TextReader = ({
     }
   };
 
-  // Get voice for TTS
   const findMatchingVoice = (voiceId: string): SpeechSynthesisVoice | null => {
     if (!availableVoices.length) {
       return null;
@@ -571,7 +447,6 @@ const TextReader = ({
     return genderFallback || availableVoices[0];
   };
 
-  // Create speech utterance
   const createUtterance = (startFrom: number = 0) => {
     setShowSpeechError(false);
     
@@ -613,8 +488,6 @@ const TextReader = ({
       setCurrentWordIndex(-1);
       utteranceRef.current = null;
       
-      // Optionally auto-advance to next page
-      /*
       if (currentPage < totalPages) {
         toast({
           title: "Page Complete",
@@ -622,7 +495,6 @@ const TextReader = ({
         });
         setTimeout(() => handleNextPage(), 1500);
       }
-      */
     };
     
     utterance.onerror = (event) => {
@@ -648,7 +520,6 @@ const TextReader = ({
     return utterance;
   };
 
-  // Start text-to-speech
   const startSpeech = (fromPosition: number = 0) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -673,7 +544,6 @@ const TextReader = ({
     }
   };
 
-  // Stop speech
   const stopSpeech = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -685,7 +555,6 @@ const TextReader = ({
     }
   };
 
-  // Pause speech
   const pauseSpeech = () => {
     if ('speechSynthesis' in window && isSpeaking) {
       const timeSinceStart = Date.now() - (window as any).speechStartTime;
@@ -702,7 +571,6 @@ const TextReader = ({
     }
   };
 
-  // Resume speech
   const resumeSpeech = () => {
     if ('speechSynthesis' in window && isSpeaking && isPaused) {
       window.speechSynthesis.resume();
@@ -710,7 +578,6 @@ const TextReader = ({
     }
   };
 
-  // Skip forward
   const skipForward = () => {
     if (isSpeaking) {
       const charsPerSecond = 15 * speechRate;
@@ -730,7 +597,6 @@ const TextReader = ({
     }
   };
 
-  // Skip backward
   const skipBackward = () => {
     if (isSpeaking) {
       const charsPerSecond = 15 * speechRate;
@@ -747,7 +613,6 @@ const TextReader = ({
     }
   };
 
-  // Toggle play/pause
   const togglePlayPause = () => {
     if (!isSpeaking) {
       startSpeech(currentTextPosition);
@@ -759,7 +624,6 @@ const TextReader = ({
     }
   };
 
-  // Modify the speech rate
   const incrementRate = () => {
     const newRate = Math.min(2, speechRate + 0.25);
     setSpeechRate(newRate);
@@ -796,7 +660,6 @@ const TextReader = ({
     });
   };
 
-  // Change voice
   const handleVoiceChange = (value: string) => {
     setSelectedVoice(value);
     setIsVoiceChanging(true);
@@ -819,35 +682,27 @@ const TextReader = ({
     });
   };
 
-  // Format speed label
   const formatSpeedLabel = (speed: number) => {
     return `${speed}x`;
   };
 
-  // Toggle edit mode
   const toggleEditMode = () => {
-    // If switching to edit mode, combine all pages
     if (!editMode) {
-      // Already in view mode, switching to edit mode
       setEditMode(true);
-      // Focus the textarea after switching to edit mode
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.focus();
         }
       }, 100);
     } else {
-      // In edit mode, switching to view mode
       setEditMode(false);
     }
   };
 
-  // Update document upload count
   const incrementDocumentsUploaded = async () => {
     if (!user) return;
     
     try {
-      // First check if the user has stats
       const { data, error } = await supabase
         .from('reading_stats')
         .select('documents_uploaded')
@@ -860,7 +715,6 @@ const TextReader = ({
       }
       
       if (data) {
-        // Update existing record
         await supabase
           .from('reading_stats')
           .update({
@@ -868,7 +722,6 @@ const TextReader = ({
           })
           .eq('user_id', user.id);
       } else {
-        // Create new record
         await supabase
           .from('reading_stats')
           .insert({
@@ -887,40 +740,32 @@ const TextReader = ({
     }
   };
 
-  // Generate pagination numbers
   const getPaginationItems = () => {
     const items: number[] = [];
-    const maxVisible = 7; // Max number of page buttons to show
+    const maxVisible = 7;
     
     if (totalPages <= maxVisible) {
-      // Show all pages if there aren't too many
       for (let i = 1; i <= totalPages; i++) {
         items.push(i);
       }
     } else {
-      // Always show first page
       items.push(1);
       
-      // Calculate range around current page
       const leftSide = Math.max(2, currentPage - 2);
       const rightSide = Math.min(totalPages - 1, currentPage + 2);
       
-      // Add ellipsis if needed on left side
       if (leftSide > 2) {
-        items.push(-1); // Use -1 to represent ellipsis
+        items.push(-1);
       }
       
-      // Add pages around current page
       for (let i = leftSide; i <= rightSide; i++) {
         items.push(i);
       }
       
-      // Add ellipsis if needed on right side
       if (rightSide < totalPages - 1) {
-        items.push(-2); // Use -2 to represent ellipsis (different key)
+        items.push(-2);
       }
       
-      // Always show last page
       items.push(totalPages);
     }
     
@@ -976,7 +821,6 @@ const TextReader = ({
       >
         {(editMode || isSpeaking) ? (
           editMode ? (
-            // Edit mode - show textarea
             <Textarea
               ref={textareaRef}
               value={fullText}
@@ -993,7 +837,6 @@ const TextReader = ({
               }}
             />
           ) : (
-            // Reading mode with word highlighting
             <div 
               ref={textContainerRef}
               className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none overflow-auto text-left h-full"
@@ -1010,7 +853,6 @@ const TextReader = ({
             </div>
           )
         ) : (
-          // View mode - show current page text without editing or highlighting
           <Textarea
             value={textPages[currentPage - 1] || ''}
             onChange={handleTextChange}
@@ -1029,7 +871,6 @@ const TextReader = ({
         )}
       </div>
       
-      {/* Pagination Controls */}
       {totalPages > 1 && !editMode && (
         <Pagination className="mt-1 mb-4">
           <PaginationContent>
@@ -1067,7 +908,6 @@ const TextReader = ({
         </Pagination>
       )}
       
-      {/* Text-to-Speech Controls */}
       <div className="flex flex-wrap gap-3 justify-start items-center">
         <Button
           onClick={togglePlayPause}

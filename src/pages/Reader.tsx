@@ -83,6 +83,11 @@ const Reader = () => {
     }, 100);
   };
 
+  // Handle text changes from TextReader component
+  const handleTextChange = (newText: string) => {
+    setText(newText);
+  };
+
   // Calculate optimal page size based on screen size and font size
   useEffect(() => {
     // Adjust page size based on device and font
@@ -123,6 +128,7 @@ const Reader = () => {
                 backgroundColor={backgroundColor}
                 initialText={text}
                 pageSize={pageSize}
+                onTextChange={handleTextChange}
               />
             </div>
             
@@ -175,6 +181,7 @@ const Reader = () => {
                 backgroundColor={backgroundColor}
                 initialText={text}
                 pageSize={pageSize}
+                onTextChange={handleTextChange}
               />
             </div>
           </div>
