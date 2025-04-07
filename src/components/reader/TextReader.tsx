@@ -181,6 +181,46 @@ const TextReader = ({
     updateDisplayText(-1);
   };
 
+  const updateDisplayText = (activeWordIndex: number) => {
+    if (words.length === 0) {
+      setDisplayText(null);
+      return;
+    }
+
+    const highlightedText = (
+      <div>
+        {words.map((word, index) => {
+          if (word === "\n") {
+            return <br key={`br-${index}`} />;
+          }
+          
+          const isActive = index === activeWordIndex;
+          return (
+            <span
+              key={`word-${index}`}
+              className={isActive ? "bg-primary-foreground px-0.5 rounded" : ""}
+              style={{
+                display: "inline-block",
+                marginRight: word.endsWith('.') || word.endsWith(',') || 
+                             word.endsWith('!') || word.endsWith('?') || 
+                             word.endsWith(':') || word.endsWith(';') ? '6px' : '3px',
+                marginBottom: '3px',
+              }}
+            >
+              {word}
+            </span>
+          );
+        })}
+      </div>
+    );
+    
+    setDisplayText(highlightedText);
+  };
+
+  useEffect(() => {
+    updateDisplayText(currentWordIndex);
+  }, [currentWordIndex, words]);
+
   useEffect(() => {
     if (isSpeaking && !isPaused && !readingStartTime) {
       setReadingStartTime(Date.now());
