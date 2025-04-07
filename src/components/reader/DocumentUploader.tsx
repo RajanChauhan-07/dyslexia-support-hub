@@ -20,6 +20,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [currentFileType, setCurrentFileType] = useState<string>(''); // Add this to track file type
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -31,6 +32,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
     const file = files[0];
     setIsUploading(true);
     setProcessingProgress(10); // Initial progress indicator
+    setCurrentFileType(file.type); // Store the file type
     
     if (processingTimeoutRef.current) {
       clearTimeout(processingTimeoutRef.current);
@@ -235,7 +237,7 @@ const DocumentUploader = ({ onTextExtracted }: DocumentUploaderProps) => {
                     Processing document ({processingProgress}%)...
                     {processingProgress > 50 && processingProgress < 90 && (
                       <span className="block mt-1">
-                        {file.type?.includes('pdf') ? 'OCR processing may take longer for scanned pages.' : ''}
+                        {currentFileType.includes('pdf') ? 'OCR processing may take longer for scanned pages.' : ''}
                       </span>
                     )}
                   </p>
