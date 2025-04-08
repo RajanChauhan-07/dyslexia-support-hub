@@ -832,6 +832,7 @@ const TextReader = ({
       }
       
       if (data) {
+        console.log(`Incrementing documents uploaded from ${data.documents_uploaded} to ${data.documents_uploaded + 1}`);
         await supabase
           .from('reading_stats')
           .update({
@@ -839,6 +840,7 @@ const TextReader = ({
           })
           .eq('user_id', user.id);
       } else {
+        console.log('Creating new reading stats record with documents_uploaded = 1');
         await supabase
           .from('reading_stats')
           .insert({
@@ -849,7 +851,8 @@ const TextReader = ({
             documents_finished: 0,
             current_streak: 0,
             longest_streak: 0,
-            total_reading_time: 0
+            total_reading_time: 0,
+            last_read_at: new Date().toISOString(),
           });
       }
     } catch (error) {

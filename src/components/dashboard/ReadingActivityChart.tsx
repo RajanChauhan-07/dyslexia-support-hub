@@ -37,7 +37,7 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
         
         switch (period) {
           case "daily":
-            startDate.setHours(0, 0, 0, 0);
+            startDate.setDate(now.getDate() - 1); // Last 24 hours
             break;
           case "weekly":
             startDate.setDate(now.getDate() - 7);
@@ -50,6 +50,8 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
             break;
         }
 
+        console.log(`Fetching reading activity for period ${period} from ${startDate.toISOString()}`);
+
         const { data: activityData, error } = await supabase
           .from('reading_activity')
           .select('*')
@@ -61,6 +63,7 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
           console.error('Error fetching reading activity:', error);
           setChartData(getFormattedData([]));
         } else {
+          console.log(`Found ${activityData.length} reading activity records`);
           const formattedActivity = activityData.map(item => ({
             date: item.read_at,
             wordsRead: item.words_read
@@ -89,6 +92,7 @@ const ReadingActivityChart = ({ period, data = [] }: ReadingActivityChartProps) 
           filter: `user_id=eq.${user.id}`
         }, 
         (_payload) => {
+          console.log('Reading activity updated, refreshing data');
           // Refresh data when activity changes
           fetchReadingActivity();
         }
