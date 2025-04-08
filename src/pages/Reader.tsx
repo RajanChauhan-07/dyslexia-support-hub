@@ -83,7 +83,7 @@ const Reader = () => {
     }, 100);
   };
 
-  // Handle text changes from TextReader component
+  // Handle text changes from TextReader component - save without delay
   const handleTextChange = (newText: string) => {
     setText(newText);
   };

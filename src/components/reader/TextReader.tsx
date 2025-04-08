@@ -101,6 +101,43 @@ const TextReader = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
   const [editorFocused, setEditorFocused] = useState<boolean>(false);
+  const [initialSetupComplete, setInitialSetupComplete] = useState<boolean>(false);
+
+  const updateDisplayText = (activeWordIndex: number) => {
+    if (words.length === 0) {
+      setDisplayText(null);
+      return;
+    }
+
+    const highlightedText = (
+      <div>
+        {words.map((word, index) => {
+          if (word === "\n") {
+            return <br key={`br-${index}`} />;
+          }
+          
+          const isActive = index === activeWordIndex;
+          return (
+            <span
+              key={`word-${index}`}
+              className={isActive ? "bg-primary-foreground px-0.5 rounded" : ""}
+              style={{
+                display: "inline-block",
+                marginRight: word.endsWith('.') || word.endsWith(',') || 
+                             word.endsWith('!') || word.endsWith('?') || 
+                             word.endsWith(':') || word.endsWith(';') ? '6px' : '3px',
+                marginBottom: '3px',
+              }}
+            >
+              {word}
+            </span>
+          );
+        })}
+      </div>
+    );
+    
+    setDisplayText(highlightedText);
+  };
 
   useEffect(() => {
     if (fullText) {
@@ -138,16 +175,21 @@ const TextReader = ({
       
       setTextPages(pages);
       setTotalPages(pages.length);
-      setCurrentPage(1);
+      
+      if (currentPage > pages.length && pages.length > 0) {
+        setCurrentPage(1);
+      }
       
       if (pages.length > 0) {
-        processTextForPage(pages[0]);
+        processTextForPage(pages[currentPage - 1]);
       } else {
         setWords([]);
         setCurrentWordIndex(-1);
       }
       
-      setEditMode(!pages.length);
+      if (pages.length === 0) {
+        setEditMode(true);
+      }
     } else {
       setTextPages([]);
       setTotalPages(1);
@@ -180,42 +222,6 @@ const TextReader = ({
     
     setWords(parsedWords);
     updateDisplayText(-1);
-  };
-
-  const updateDisplayText = (activeWordIndex: number) => {
-    if (words.length === 0) {
-      setDisplayText(null);
-      return;
-    }
-
-    const highlightedText = (
-      <div>
-        {words.map((word, index) => {
-          if (word === "\n") {
-            return <br key={`br-${index}`} />;
-          }
-          
-          const isActive = index === activeWordIndex;
-          return (
-            <span
-              key={`word-${index}`}
-              className={isActive ? "bg-primary-foreground px-0.5 rounded" : ""}
-              style={{
-                display: "inline-block",
-                marginRight: word.endsWith('.') || word.endsWith(',') || 
-                             word.endsWith('!') || word.endsWith('?') || 
-                             word.endsWith(':') || word.endsWith(';') ? '6px' : '3px',
-                marginBottom: '3px',
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
-      </div>
-    );
-    
-    setDisplayText(highlightedText);
   };
 
   useEffect(() => {
@@ -349,22 +355,27 @@ const TextReader = ({
   };
 
   useEffect(() => {
-    if (initialText !== fullText) {
+    if (!initialSetupComplete && initialText) {
       setFullText(initialText);
-      
-      if (isSpeaking) {
-        stopSpeech();
-      }
-      
-      setCurrentWordIndex(-1);
-      setCurrentTextPosition(0);
-      
-      if (textContainerRef.current) {
-        textContainerRef.current.scrollTop = 0;
-      }
-      
-      if (user && initialText.trim().length > 0) {
-        incrementDocumentsUploaded();
+      setInitialSetupComplete(true);
+    } else if (initialText !== fullText && initialText !== '') {
+      if (fullText === '' || initialText.length > fullText.length * 1.5) {
+        setFullText(initialText);
+        
+        if (isSpeaking) {
+          stopSpeech();
+        }
+        
+        setCurrentWordIndex(-1);
+        setCurrentTextPosition(0);
+        
+        if (textContainerRef.current) {
+          textContainerRef.current.scrollTop = 0;
+        }
+        
+        if (user && initialText.trim().length > 0) {
+          incrementDocumentsUploaded();
+        }
       }
     }
   }, [initialText, user]);
@@ -405,6 +416,10 @@ const TextReader = ({
     setCurrentPage(1);
     setTextPages([]);
     setEditMode(true);
+    
+    if (onTextChange) {
+      onTextChange('');
+    }
     
     toast({
       title: "Text Reset",
