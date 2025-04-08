@@ -120,7 +120,7 @@ const TextReader = ({
           return (
             <span
               key={`word-${index}`}
-              className={isActive ? "bg-primary-foreground px-0.5 rounded" : ""}
+              className={isActive ? "bg-primary text-primary-foreground px-0.5 rounded" : ""}
               style={{
                 display: "inline-block",
                 marginRight: word.endsWith('.') || word.endsWith(',') || 
@@ -229,6 +229,8 @@ const TextReader = ({
   }, [currentPage, textPages]);
 
   const processTextForPage = (pageText: string) => {
+    if (!pageText) return;
+    
     const lines = pageText.split(/\n/).map(line => line.trim());
     const parsedWords: string[] = [];
     
@@ -577,7 +579,19 @@ const TextReader = ({
           const textUpToPosition = currentPageText.substring(0, startFrom + event.charIndex);
           const wordsBefore = textUpToPosition.split(/\s+/).filter(w => w.length > 0).length;
           setCurrentWordIndex(wordsBefore);
-        }, 50);
+          
+          if (textContainerRef.current) {
+            const highlightedElement = textContainerRef.current.querySelector('.bg-primary');
+            if (highlightedElement) {
+              const containerRect = textContainerRef.current.getBoundingClientRect();
+              const elementRect = highlightedElement.getBoundingClientRect();
+              
+              if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
+                highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+          }
+        }, 10);
       }
     };
     
@@ -940,7 +954,7 @@ const TextReader = ({
               backgroundColor,
             }}
           />
-        ) : isSpeaking ? (
+        ) : (
           <div 
             ref={textContainerRef}
             className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none overflow-auto text-left h-full"
@@ -953,24 +967,24 @@ const TextReader = ({
               backgroundColor,
             }}
           >
-            {displayText}
+            {displayText || (
+              <Textarea
+                value={textPages[currentPage - 1] || ''}
+                onChange={handleTextChange}
+                placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
+                className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
+                readOnly
+                style={{
+                  fontFamily,
+                  fontSize: `${fontSize}px`,
+                  lineHeight: lineSpacing,
+                  letterSpacing: `${letterSpacing}px`,
+                  color: textColor,
+                  backgroundColor,
+                }}
+              />
+            )}
           </div>
-        ) : (
-          <Textarea
-            value={textPages[currentPage - 1] || ''}
-            onChange={handleTextChange}
-            placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
-            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
-            readOnly
-            style={{
-              fontFamily,
-              fontSize: `${fontSize}px`,
-              lineHeight: lineSpacing,
-              letterSpacing: `${letterSpacing}px`,
-              color: textColor,
-              backgroundColor,
-            }}
-          />
         )}
       </div>
       
