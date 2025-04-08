@@ -100,6 +100,7 @@ const TextReader = ({
   const textContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
+  const [editorFocused, setEditorFocused] = useState<boolean>(false);
 
   useEffect(() => {
     if (fullText) {
@@ -348,7 +349,7 @@ const TextReader = ({
   };
 
   useEffect(() => {
-    if (initialText) {
+    if (initialText !== fullText) {
       setFullText(initialText);
       
       if (isSpeaking) {
@@ -392,8 +393,6 @@ const TextReader = ({
         onTextChange(updatedFullText);
       }
     }
-    
-    setCurrentWordIndex(-1);
   };
 
   const handleReset = () => {
@@ -733,7 +732,7 @@ const TextReader = ({
         if (textareaRef.current) {
           textareaRef.current.focus();
         }
-      }, 100);
+      }, 50);
     } else {
       setEditMode(false);
     }
@@ -859,39 +858,39 @@ const TextReader = ({
         className="rounded-xl overflow-hidden shadow-lg transition-all duration-300 mb-4 w-full flex-grow"
         style={{ backgroundColor }}
       >
-        {(editMode || isSpeaking) ? (
-          editMode ? (
-            <Textarea
-              ref={textareaRef}
-              value={fullText}
-              onChange={handleTextChange}
-              placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
-              className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
-              style={{
-                fontFamily,
-                fontSize: `${fontSize}px`,
-                lineHeight: lineSpacing,
-                letterSpacing: `${letterSpacing}px`,
-                color: textColor,
-                backgroundColor,
-              }}
-            />
-          ) : (
-            <div 
-              ref={textContainerRef}
-              className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none overflow-auto text-left h-full"
-              style={{
-                fontFamily,
-                fontSize: `${fontSize}px`,
-                lineHeight: lineSpacing,
-                letterSpacing: `${letterSpacing}px`,
-                color: textColor,
-                backgroundColor,
-              }}
-            >
-              {displayText}
-            </div>
-          )
+        {editMode ? (
+          <Textarea
+            ref={textareaRef}
+            value={fullText}
+            onChange={handleTextChange}
+            onFocus={() => setEditorFocused(true)}
+            onBlur={() => setEditorFocused(false)}
+            placeholder="Enter or paste text here to read with your preferred settings, or upload a document using the button above..."
+            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none h-full"
+            style={{
+              fontFamily,
+              fontSize: `${fontSize}px`,
+              lineHeight: lineSpacing,
+              letterSpacing: `${letterSpacing}px`,
+              color: textColor,
+              backgroundColor,
+            }}
+          />
+        ) : isSpeaking ? (
+          <div 
+            ref={textContainerRef}
+            className="border-none focus-visible:ring-1 min-h-[450px] md:min-h-[500px] p-6 w-full resize-none overflow-auto text-left h-full"
+            style={{
+              fontFamily,
+              fontSize: `${fontSize}px`,
+              lineHeight: lineSpacing,
+              letterSpacing: `${letterSpacing}px`,
+              color: textColor,
+              backgroundColor,
+            }}
+          >
+            {displayText}
+          </div>
         ) : (
           <Textarea
             value={textPages[currentPage - 1] || ''}
