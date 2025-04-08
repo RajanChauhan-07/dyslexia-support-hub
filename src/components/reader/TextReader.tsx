@@ -82,7 +82,7 @@ const TextReader = ({
   const [speechRate, setSpeechRate] = useState<number>(1.0);
   const [selectedVoice, setSelectedVoice] = useState<string>('female');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [isVoicesLoaded, setIsVoicesLoaded] = useState<boolean>(false);
+  const [isVoicesLoaded, setIsVoicesLoaded] = useState<boolean>(true);
   const [isVoiceChanging, setIsVoiceChanging] = useState<boolean>(false);
   const [showSpeechError, setShowSpeechError] = useState<boolean>(false);
   const [currentTextPosition, setCurrentTextPosition] = useState<number>(0);
@@ -138,6 +138,28 @@ const TextReader = ({
     
     setDisplayText(highlightedText);
   };
+
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const synth = window.speechSynthesis;
+        const voices = synth.getVoices();
+        if (voices.length > 0) {
+          setAvailableVoices(voices);
+          setIsVoicesLoaded(true);
+          console.log("Loaded voices:", voices.map(v => v.name));
+        }
+      };
+
+      loadVoices();
+
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+
+      return () => {
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (fullText) {
@@ -467,13 +489,17 @@ const TextReader = ({
   };
 
   const findMatchingVoice = (voiceId: string): SpeechSynthesisVoice | null => {
-    if (!availableVoices.length) {
+    if (!availableVoices || !availableVoices.length) {
+      console.log("No available voices found");
       return null;
     }
 
+    console.log(`Finding voice for: ${voiceId}`);
+    console.log("Available voices:", availableVoices.map(v => v.name));
+
     const voicePreferences: Record<string, string[]> = {
-      'male': ['daniel', 'david', 'male', 'man'],
-      'female': ['emily', 'samantha', 'female', 'woman']
+      'male': ['daniel', 'david', 'male', 'man', 'guy'],
+      'female': ['emily', 'samantha', 'female', 'woman', 'girl']
     };
 
     const preferences = voicePreferences[voiceId] || [];
@@ -482,23 +508,41 @@ const TextReader = ({
       const exactMatch = availableVoices.find(
         voice => voice.name.toLowerCase() === pref
       );
-      if (exactMatch) return exactMatch;
+      if (exactMatch) {
+        console.log(`Found exact match: ${exactMatch.name}`);
+        return exactMatch;
+      }
     }
     
     for (const pref of preferences) {
       const partialMatch = availableVoices.find(
         voice => voice.name.toLowerCase().includes(pref)
       );
-      if (partialMatch) return partialMatch;
+      if (partialMatch) {
+        console.log(`Found partial match: ${partialMatch.name}`);
+        return partialMatch;
+      }
     }
 
     const isFemalePref = voiceId === 'female';
     const genderFallback = availableVoices.find(
-      v => isFemalePref ? v.name.toLowerCase().includes('female') || !v.name.toLowerCase().includes('male') 
-                        : v.name.toLowerCase().includes('male')
+      v => isFemalePref ? 
+          v.name.toLowerCase().includes('female') || 
+          !v.name.toLowerCase().includes('male') || 
+          v.name.toLowerCase().includes('woman') || 
+          v.name.toLowerCase().includes('girl') :
+          v.name.toLowerCase().includes('male') || 
+          v.name.toLowerCase().includes('man') || 
+          v.name.toLowerCase().includes('guy')
     );
     
-    return genderFallback || availableVoices[0];
+    if (genderFallback) {
+      console.log(`Found gender fallback: ${genderFallback.name}`);
+      return genderFallback;
+    }
+    
+    console.log(`Using default voice: ${availableVoices[0].name}`);
+    return availableVoices[0];
   };
 
   const createUtterance = (startFrom: number = 0) => {
@@ -522,6 +566,9 @@ const TextReader = ({
     const voice = findMatchingVoice(selectedVoice);
     if (voice) {
       utterance.voice = voice;
+      console.log(`Using voice: ${voice.name}`);
+    } else {
+      console.warn("No matching voice found, using default browser voice");
     }
     
     utterance.onboundary = (event) => {
@@ -715,6 +762,7 @@ const TextReader = ({
   };
 
   const handleVoiceChange = (value: string) => {
+    console.log(`Changing voice to: ${value}`);
     setSelectedVoice(value);
     setIsVoiceChanging(true);
     
@@ -723,16 +771,17 @@ const TextReader = ({
       stopSpeech();
       setTimeout(() => {
         startSpeech(currentPos);
-      }, 50);
+      }, 100);
     } else {
       setTimeout(() => {
         setIsVoiceChanging(false);
       }, 100);
     }
     
+    const voiceName = voiceOptions.find(v => v.id === value)?.name || value;
     toast({
       title: "Voice Changed",
-      description: `Voice switched to ${voiceOptions.find(v => v.id === value)?.name || value}`,
+      description: `Voice switched to ${voiceName}`,
     });
   };
 
@@ -1043,7 +1092,7 @@ const TextReader = ({
         <Select 
           value={selectedVoice}
           onValueChange={handleVoiceChange}
-          disabled={!('speechSynthesis' in window) || !isVoicesLoaded || isVoiceChanging}
+          disabled={!('speechSynthesis' in window) || isVoiceChanging}
         >
           <SelectTrigger className="w-[160px] rounded-full">
             <Volume2 className="h-4 w-4 mr-2" />
