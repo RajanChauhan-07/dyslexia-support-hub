@@ -49,27 +49,27 @@ const voiceOptions: VoiceOption[] = [
 ];
 
 interface TextReaderProps {
-  initialText: string;
-  fontFamily?: string;
-  fontSize?: number;
-  lineSpacing?: number;
-  letterSpacing?: number;
-  textColor?: string;
-  backgroundColor?: string;
+  fontFamily: string;
+  fontSize: number;
+  lineSpacing: number;
+  letterSpacing: number;
+  textColor: string;
+  backgroundColor: string;
+  initialText?: string;
   pageSize?: number;
   onTextChange?: (text: string) => void;
 }
 
 const TextReader = ({
-  initialText,
-  fontFamily = 'OpenDyslexic, sans-serif',
-  fontSize = 18,
-  lineSpacing = 1.5,
-  letterSpacing = 0.5,
-  textColor = '#0a0a0a',
-  backgroundColor = '#f8f5de',
+  fontFamily,
+  fontSize,
+  lineSpacing,
+  letterSpacing,
+  textColor,
+  backgroundColor,
+  initialText = '',
   pageSize = 2000,
-  onTextChange
+  onTextChange,
 }: TextReaderProps) => {
   const [fullText, setFullText] = useState<string>(initialText);
   const [displayText, setDisplayText] = useState<React.ReactNode>(null);
