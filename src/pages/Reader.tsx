@@ -83,8 +83,8 @@ const Reader = () => {
           )}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[300px_1fr] lg:grid-cols-[250px_1fr] xl:grid-cols-[300px_1fr]">
-          <aside className="w-full">
+        <div className="flex flex-col md:grid md:grid-cols-[300px_1fr] lg:grid-cols-[250px_1fr] xl:grid-cols-[300px_1fr] gap-6">
+          <aside className="w-full order-last md:order-none">
             <TextCustomizer
               fontFamily={fontFamily}
               setFontFamily={setFontFamily}
@@ -102,7 +102,7 @@ const Reader = () => {
             />
           </aside>
           
-          <main className="w-full min-h-[500px]">
+          <main className="w-full min-h-[500px] order-first md:order-none">
             <TextReader
               fontFamily={fontFamily}
               fontSize={fontSize}

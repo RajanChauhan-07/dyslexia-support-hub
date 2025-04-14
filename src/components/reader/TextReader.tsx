@@ -36,6 +36,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 
 interface VoiceOption {
   id: string;
@@ -140,25 +141,40 @@ const TextReader = ({
   };
 
   useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        const synth = window.speechSynthesis;
-        const voices = synth.getVoices();
-        if (voices.length > 0) {
-          setAvailableVoices(voices);
+    const initializeTTS = async () => {
+      if ('speechSynthesis' in window) {
+        // Web browser TTS initialization
+        const loadVoices = () => {
+          const synth = window.speechSynthesis;
+          const voices = synth.getVoices();
+          if (voices.length > 0) {
+            setAvailableVoices(voices);
+            setIsVoicesLoaded(true);
+            console.log("Loaded voices:", voices.map(v => v.name));
+          }
+        };
+
+        loadVoices();
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      } else {
+        // Initialize Capacitor TTS for Android
+        try {
+          await TextToSpeech.getSupportedLanguages();
           setIsVoicesLoaded(true);
-          console.log("Loaded voices:", voices.map(v => v.name));
+        } catch (error) {
+          console.error('Error initializing TTS:', error);
+          setShowSpeechError(true);
         }
-      };
+      }
+    };
 
-      loadVoices();
+    initializeTTS();
 
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-
-      return () => {
+    return () => {
+      if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = null;
-      };
-    }
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -635,38 +651,73 @@ const TextReader = ({
     return utterance;
   };
 
-  const startSpeech = (fromPosition: number = 0) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      
-      const utterance = createUtterance(fromPosition);
-      if (!utterance) return;
-      
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-      setIsPaused(false);
-      
-      if (fromPosition === 0) {
-        setCurrentWordIndex(-1);
+  const startSpeech = async (fromPosition: number = 0) => {
+    try {
+      if ('speechSynthesis' in window) {
+        // Existing web browser implementation
+        window.speechSynthesis.cancel();
+        
+        const utterance = createUtterance(fromPosition);
+        if (!utterance) return;
+        
+        utteranceRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+        setIsSpeaking(true);
+        setIsPaused(false);
+        
+        if (fromPosition === 0) {
+          setCurrentWordIndex(-1);
+        }
+      } else {
+        // Android implementation using Capacitor
+        const currentPageText = textPages[currentPage - 1];
+        if (!currentPageText || !currentPageText.trim()) {
+          toast({
+            title: "Nothing to read",
+            description: "Please enter some text first.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const textToSpeak = fromPosition > 0 ? currentPageText.substring(fromPosition) : currentPageText;
+        
+        await TextToSpeech.speak({
+          text: textToSpeak,
+          rate: speechRate,
+          pitch: 1.0,
+          volume: 1.0,
+          lang: 'en-US'
+        });
+
+        setIsSpeaking(true);
+        setIsPaused(false);
       }
-    } else {
+    } catch (error) {
+      console.error('Speech error:', error);
+      setShowSpeechError(true);
       toast({
-        title: "Speech Synthesis Not Supported",
-        description: "Your browser doesn't support text-to-speech functionality.",
+        title: "Speech Error",
+        description: "There was an error with the speech synthesis. Please try again.",
         variant: "destructive"
       });
     }
   };
 
-  const stopSpeech = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+  const stopSpeech = async () => {
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      } else {
+        await TextToSpeech.stop();
+      }
       setIsSpeaking(false);
       setIsPaused(false);
       setIsVoiceChanging(false);
       setCurrentWordIndex(-1);
       utteranceRef.current = null;
+    } catch (error) {
+      console.error('Error stopping speech:', error);
     }
   };
 
